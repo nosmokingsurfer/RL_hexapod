@@ -41,12 +41,14 @@ class Policy(object):
             self._sample()
             self._loss_train_op()
             self.init = tf.global_variables_initializer()
-            self.saver = tf.train.Saver()
+            self.saver = tf.train.Saver(max_to_keep = 20)
             self.sess = tf.Session(graph=self.g)
-            self.sess.run(self.init)
+            # self.sess.run(self.init)
             if self.restore_path is not None:
                 print("Restoring policy graph")
                 self.saver.restore(self.sess, tf.train.latest_checkpoint(self.restore_path + '/policy_dump/'))
+            else:
+                self.sess.run(self.init)
 
 
     def _placeholders(self):
@@ -84,6 +86,8 @@ class Policy(object):
         out = tf.layers.dense(out, hid2_size, tf.tanh,
                               kernel_initializer=tf.random_normal_initializer(
                                   stddev=np.sqrt(1 / hid1_size)), name="h2")
+        self.h2 = out
+
         out = tf.layers.dense(out, hid3_size, tf.tanh,
                               kernel_initializer=tf.random_normal_initializer(
                                   stddev=np.sqrt(1 / hid2_size)), name="h3")
@@ -214,6 +218,11 @@ class Policy(object):
 
     def close_sess(self):
         """ Close TensorFlow session """
+        self.save()
+        self.writer.close()
+        self.sess.close()
+
+    def save(self):
         print("Saving policy_dump")
         path = os.path.join(self.logger.path, 'policy_dump')
         try:
@@ -221,5 +230,3 @@ class Policy(object):
         except:
             pass
         self.saver.save(self.sess, '{}/policy_dump'.format(path))
-        self.writer.close()
-        self.sess.close()

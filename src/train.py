@@ -37,7 +37,7 @@ import os
 import argparse
 import signal
 import imageio
-
+from multiprocessing.pool import ThreadPool
 
 
 class GracefulKiller:
@@ -71,6 +71,12 @@ def init_gym(env_name):
     return env, obs_dim, act_dim
 
 
+def init_gyms(env_name, env_count):
+    env, obs_dim, act_dim = init_gym(env_name)
+    env.close()
+    return [init_gym(env_name)[0] for i in range(env_count)], obs_dim, act_dim
+
+
 def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_train'):
     """ Run single episode with option to animate
 
@@ -97,7 +103,6 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
     rendered_frames = []
     while not done:
         if animate:
-            # env.render()
             rendered_frames.append(env.render("rgb_array"))
         obs = obs.astype(np.float64).reshape((1, -1))
         obs = np.append(obs, [[step]], axis=1)  # add time step feature
@@ -116,7 +121,7 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
         p = '~/Desktop'
         if logger is not None:
             p = logger.path
-        imageio.mimwrite('{}/{}_{}.mp4'.format(p, anim_name, datetime.now().strftime("%b-%d_%H:%M:%S")), np.array(rendered_frames), fps=60)
+        imageio.mimwrite('{}/{}.mp4'.format(p, anim_name), np.array(rendered_frames), fps=60)
 
     return (np.concatenate(observes), np.concatenate(actions),
             np.array(rewards, dtype=np.float64), np.concatenate(unscaled_obs))
@@ -151,6 +156,49 @@ def run_policy(env, policy, scaler, logger, episodes, animate=False, anim_name='
                       'rewards': rewards,
                       'unscaled_obs': unscaled_obs}
         trajectories.append(trajectory)
+    unscaled = np.concatenate([t['unscaled_obs'] for t in trajectories])
+    scaler.update(unscaled)  # update running statistics for scaling observations
+    logger.log({'_MeanReward': np.mean([t['rewards'].sum() for t in trajectories]),
+                'Steps': total_steps})
+
+    return trajectories
+
+
+def run_episode_wrapper(env, policy, scaler, animate, logger, anim_name):
+    observes, actions, rewards, unscaled_obs = run_episode(env, policy, scaler, animate=animate, logger=logger,
+                                                           anim_name=anim_name)
+    trajectory = {'observes': observes,
+                  'actions': actions,
+                  'rewards': rewards,
+                  'unscaled_obs': unscaled_obs}
+    return trajectory
+
+
+def run_policy_parallel(env_list, policy, scaler, logger, episodes, animate=False, anim_name='ant_train', thread_num=4):
+    """ Run policy and collect data for a minimum of min_steps and min_episodes
+
+    Args:
+        env_list: ai gym environments, 1 per each episode
+        policy: policy object with sample() method
+        scaler: scaler object, used to scale/offset each observation dimension
+            to a similar range
+        logger: logger object, used to save stats from episodes
+        episodes: total episodes to run
+
+    Returns: list of trajectory dictionaries, list length = number of episodes
+        'observes' : NumPy array of states from episode
+        'actions' : NumPy array of actions from episode
+        'rewards' : NumPy array of (un-discounted) rewards from episode
+        'unscaled_obs' : NumPy array of (un-discounted) rewards from episode
+    """
+    assert (len(env_list) == episodes)
+
+    params = [(env, policy, scaler, False, None, '' + str(num)) for num, env in enumerate(env_list)]
+    pool = ThreadPool(thread_num)
+    trajectories = pool.starmap(run_episode_wrapper, params)
+    pool.close()
+    pool.join()
+    total_steps = sum([t['observes'].shape[0] for t in trajectories])
     unscaled = np.concatenate([t['unscaled_obs'] for t in trajectories])
     scaler.update(unscaled)  # update running statistics for scaling observations
     logger.log({'_MeanReward': np.mean([t['rewards'].sum() for t in trajectories]),
@@ -250,7 +298,7 @@ def build_train_set(trajectories):
     return observes, actions, advantages, disc_sum_rew
 
 
-def log_batch_stats(observes, actions, advantages, disc_sum_rew, logger, episode, train_time):
+def log_batch_stats(observes, actions, advantages, disc_sum_rew, logger, episode, train_time, sim_time, policy_time, val_time):
     """ Log various batch statistics """
     logger.log({'_mean_obs': np.mean(observes),
                 '_min_obs': np.min(observes),
@@ -269,7 +317,10 @@ def log_batch_stats(observes, actions, advantages, disc_sum_rew, logger, episode
                 '_max_discrew': np.max(disc_sum_rew),
                 '_std_discrew': np.var(disc_sum_rew),
                 '_Episode': episode,
-                '_full_train_time': str(train_time).split('.')[0]
+                '_full_train_time': str(train_time).split('.')[0],
+                '_time_simulation': str(sim_time).split('.')[0],
+                '_time_policy_train': str(policy_time).split('.')[0],
+                '_time_value_train': str(val_time).split('.')[0]
                 })
 
 
@@ -280,7 +331,7 @@ def estimate_time_left(episode, num_episodes, train_time):
     return '{:02}:{:02}:{:02}'.format(int(hours), int(minutes), int(seconds))
 
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path):
+def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count):
     """ Main training loop
 
     Args:
@@ -291,25 +342,37 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
         kl_targ: D_KL target for policy update [D_KL(pi_old || pi_new)
         batch_size: number of episodes per policy training batch
     """
-
     killer = GracefulKiller()
     env, obs_dim, act_dim = init_gym(env_name)
+    env_list, obs_dim, act_dim = init_gyms(env_name, batch_size)
     obs_dim += 1  # add 1 to obs dimension for time step feature (see run_episode())
     start_time = datetime.now()  # create unique directories
-    start_time_str = start_time.strftime("%b-%d_%H:%M:%S")
+    start_time_str = start_time.strftime("%b-%d/%H.%M.%S")
     logger = Logger(logname=env_name, now=start_time_str, out_path=out_path)
     aigym_path = os.path.join('/tmp', env_name, start_time_str)
     env = wrappers.Monitor(env, aigym_path, force=True)
     scaler = Scaler(obs_dim)
+
     val_func = NNValueFunction(obs_dim, logger, restore_path)
     policy = Policy(obs_dim, act_dim, kl_targ, logger, restore_path)
     # run a few episodes of untrained policy to initialize scaler:
-    if restore_path is None:
-        run_policy(env, policy, scaler, logger, episodes=5)
-    episode = 0
     try:
+        if restore_path is None:
+            print("\nInitializing scaler (may take some time)... ")
+            run_policy(env, policy, scaler, logger, episodes=5)
+            print("Done\n")
+        else:
+            scaler.load(restore_path, obs_dim)
+        episode = 0
+
         while episode < num_episodes:
-            trajectories = run_policy(env, policy, scaler, logger, episodes=batch_size)
+            sim_time = datetime.now()
+            if thread_count > 1:
+                trajectories = run_policy_parallel(env_list, policy, scaler, logger, episodes=batch_size, thread_num=thread_count)
+            else:
+                trajectories = run_policy(env, policy, scaler, logger, episodes=batch_size)
+            sim_time = datetime.now() - sim_time
+
             episode += len(trajectories)
             add_value(trajectories, val_func)  # add estimated values to episodes
             add_disc_sum_rew(trajectories, gamma)  # calculated discounted sum of Rs
@@ -318,29 +381,35 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
             observes, actions, advantages, disc_sum_rew = build_train_set(trajectories)
             # add various stats to training log:
             train_time = datetime.now() - start_time
-            log_batch_stats(observes, actions, advantages, disc_sum_rew, logger, episode, train_time)
+            policy_time = datetime.now()
             policy.update(observes, actions, advantages, logger)  # update policy
+            policy_time = datetime.now() - policy_time
+            val_time = datetime.now()
             val_func.fit(observes, disc_sum_rew, logger)  # update value function
+            val_time = datetime.now() - val_time
+
+            log_batch_stats(observes, actions, advantages, disc_sum_rew, logger, episode, train_time, sim_time, policy_time, val_time)
             logger.write(display=True)  # write logger results to file and stdout
             print("Estimated time left: {}\n".format(estimate_time_left(episode, num_episodes, train_time)))
 
-            if episode % 500 == 0:
-                trajectories = run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='ant_train_epizode_{}'.format(episode))
+            if episode % 1000 == 0:
+                run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='epizode_{}'.format(episode))
             if killer.kill_now:
                 # if input('Terminate training (y/[n])? ') == 'y':
                 #     break
                 # killer.kill_now = False
                 break
-    # except Exception as e:
-    #     print("[!]\tException occured")
-    #     raise e
     finally:
         print("Rendering result video")
         try:
-            trajectories = run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='ant_train_final')
+            trajectories = run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='final_epizode_{}'.format(episode))
+            # for 3D visualization
+            for t in trajectories:
+                logger.log_trajectory(t)
         except Exception as e:
             print("Failed to animate results, error: {}".format(e))
 
+        scaler.save(logger.path)
         logger.close()
         policy.close_sess()
         val_func.close_sess()
@@ -366,6 +435,9 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--out_path', type=str,
                         help='Path for all out data, by default using current working dir.',
                         default=None)
+    parser.add_argument('-t', '--thread_count', type=int,
+                        help='Number of threads',
+                        default=1)
 
     args = parser.parse_args()
     main(**vars(args))

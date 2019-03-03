@@ -61,13 +61,14 @@ class NNValueFunction(object):
             optimizer = tf.train.AdamOptimizer(self.lr)
             self.train_op = optimizer.minimize(self.loss)
             self.init = tf.global_variables_initializer()
-            self.saver = tf.train.Saver()
             self.sess = tf.Session(graph=self.g)
-            self.sess.run(self.init)
-            self.saver = tf.train.Saver()
+            #self.sess.run(self.init)
+            self.saver = tf.train.Saver(max_to_keep = 20)
             if self.restore_path is not None:
                 print("Restoring value function graph")
                 self.saver.restore(self.sess, tf.train.latest_checkpoint(self.restore_path + '/value_dump/'))
+            else:
+                self.sess.run(self.init)
 
     def fit(self, x, y, logger):
         """ Fit model to current data batch + previous data batch
@@ -113,12 +114,14 @@ class NNValueFunction(object):
 
     def close_sess(self):
         """ Close TensorFlow session """
-        print("Saving value_dump")
+        self.save()
+        self.writer.close()
+        self.sess.close()
+
+    def save(self):
         path = os.path.join(self.logger.path, 'value_dump')
         try:
             os.makedirs(path)
         except:
             pass
         self.saver.save(self.sess, '{}/value_dump'.format(path))
-        self.writer.close()
-        self.sess.close()
