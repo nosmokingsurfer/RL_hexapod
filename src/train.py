@@ -104,6 +104,8 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
     while not done:
         if animate:
             rendered_frames.append(env.render("rgb_array"))
+            if int(step * 1000) % 50 == 0:
+                print("Rendering: {}%".format(int(step * 100)))
         obs = obs.astype(np.float64).reshape((1, -1))
         obs = np.append(obs, [[step]], axis=1)  # add time step feature
         unscaled_obs.append(obs)
@@ -117,6 +119,10 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
             reward = np.asscalar(reward)
         rewards.append(reward)
         step += 1e-3  # increment time step feature
+        #debug
+        # if step > 0.2:
+        #     break
+
     if animate:
         p = '~/Desktop'
         if logger is not None:
@@ -344,13 +350,16 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     """
     killer = GracefulKiller()
     env, obs_dim, act_dim = init_gym(env_name)
-    env_list, obs_dim, act_dim = init_gyms(env_name, batch_size)
+    env_list = []
+    if thread_count > 1:
+        env_list, obs_dim, act_dim = init_gyms(env_name, batch_size)
     obs_dim += 1  # add 1 to obs dimension for time step feature (see run_episode())
     start_time = datetime.now()  # create unique directories
     start_time_str = start_time.strftime("%b-%d/%H.%M.%S")
     logger = Logger(logname=env_name, now=start_time_str, out_path=out_path)
-    aigym_path = os.path.join('/tmp', env_name, start_time_str)
-    env = wrappers.Monitor(env, aigym_path, force=True)
+    # TODO: wtf is Monitor?
+    # aigym_path = os.path.join('/tmp', env_name, start_time_str)
+    # env = wrappers.Monitor(env, aigym_path, force=True)
     scaler = Scaler(obs_dim)
 
     val_func = NNValueFunction(obs_dim, logger, restore_path)
@@ -408,6 +417,7 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
                 logger.log_trajectory(t)
         except Exception as e:
             print("Failed to animate results, error: {}".format(e))
+            raise e
 
         scaler.save(logger.path)
         logger.close()

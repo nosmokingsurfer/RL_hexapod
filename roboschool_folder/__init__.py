@@ -113,6 +113,7 @@ register(
     tags={ "pg_complexity": 20*1000000 },
     )
 
+
 from roboschool.gym_pendulums import RoboschoolInvertedPendulum
 from roboschool.gym_pendulums import RoboschoolInvertedPendulumSwingup
 from roboschool.gym_pendulums import RoboschoolInvertedDoublePendulum
