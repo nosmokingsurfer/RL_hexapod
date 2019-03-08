@@ -1,7 +1,10 @@
 from roboschool.gym_mujoco_walkers import *
 
 class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
-    foot_list = ['front_left_foot', 'front_right_foot',  'mid_right_foot', 'mid_left_foot', 'back_left_foot', 'back_right_foot']
+    # todo: fix legs in xml
+    # foot_list = ['front_left_foot', 'front_right_foot', 'mid_right_foot', 'mid_left_foot', 'back_left_foot', 'back_right_foot']
+
+    foot_list = ['front_left_foot', 'front_right_foot', 'left_back_foot', 'right_back_foot', 'right_mid_foot', 'left_mid_foot']
     foot_colors = ['#000000', '#7f7f7f', '#00ff7f', '#cc7f4d', '#ff667f', '#00667f']
     def __init__(self):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
