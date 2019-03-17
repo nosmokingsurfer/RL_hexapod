@@ -1,0 +1,4 @@
+gait_name,beta,phi2,phi3,phi4,phi5,phi6
+galop,0.66,0,0.66,0.66,0.33,0.33
+triple,0.5,0.5,0.5,0,0,0.5
+sequence,0.83,0.16,0.33,0.66,0.83,0.5
