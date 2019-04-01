@@ -349,6 +349,7 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
         batch_size: number of episodes per policy training batch
     """
     killer = GracefulKiller()
+    # restore_path = os.path.abspath(restore_path)
     env, obs_dim, act_dim = init_gym(env_name)
     env_list = []
     if thread_count > 1:

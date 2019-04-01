@@ -45,8 +45,8 @@ class Policy(object):
             self.sess = tf.Session(graph=self.g)
             # self.sess.run(self.init)
             if self.restore_path is not None:
-                print("Restoring policy graph")
-                self.saver.restore(self.sess, tf.train.latest_checkpoint(self.restore_path + '/policy_dump/'))
+                print("Restoring policy graph ")
+                self.saver.restore(self.sess, self.restore_path + '/policy_dump/policy_dump')
             else:
                 self.sess.run(self.init)
 

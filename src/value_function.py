@@ -66,7 +66,7 @@ class NNValueFunction(object):
             self.saver = tf.train.Saver(max_to_keep = 20)
             if self.restore_path is not None:
                 print("Restoring value function graph")
-                self.saver.restore(self.sess, tf.train.latest_checkpoint(self.restore_path + '/value_dump/'))
+                self.saver.restore(self.sess, self.restore_path + 'value_dump/value_dump')
             else:
                 self.sess.run(self.init)
 
