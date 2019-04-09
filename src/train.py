@@ -335,6 +335,44 @@ def estimate_time_left(episode, num_episodes, train_time):
     return '{:02}:{:02}:{:02}'.format(int(hours), int(minutes), int(seconds))
 
 
+def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path):
+    if num_episodes == -1:
+        # log train info
+        with open(logger.path + '/train_info.txt', 'w+') as finfo:
+            finfo.write("\tTrain info:\n")
+            finfo.write("Date:\t\t{}\n".format(start_time_str))
+            finfo.write("Epizodes:\t\t{}\n".format(num_episodes))
+            finfo.write("gait_name:\t\t{}\n".format(gait_name))
+            if gait_name is not None:
+                finfo.write("gait_length:\t\t{}\n".format(gait_length))
+            finfo.write("batch_size:\t\t{}\n".format(batch_size))
+            finfo.write("Data path:\t\t{}\n".format(logger.path))
+            finfo.write("restore_path:\t\t{}\n\n".format(restore_path))
+    else:
+        # copy info if inference
+        open_mode = 'a'
+        try:
+            shutil.copy(restore_path + '/train_info.txt', logger.path + '/train_info.txt')
+        except Exception as e:
+            print(e)
+            open_mode = 'w+'
+        with open(logger.path + '/train_info.txt', open_mode) as finfo:
+            finfo.write("\n\tRendering inference:\n")
+            finfo.write("Data path:\t\t{}\n".format(restore_path))
+            finfo.write("Results path:\t\t{}\n".format(logger.path))
+            finfo.write("Date:\t\t{}\n\n".format(start_time_str))
+
+
+def update_train_info(logger, num_episodes):
+    lines = None
+    with open(logger.path + '/train_info.txt', 'r') as finfo:
+        lines = finfo.readlines()
+        lines[2] = "Epizodes:\t\t{}\n".format(num_episodes)
+    with open(logger.path + '/train_info.txt', 'w') as finfo:
+        finfo.writelines(lines)
+
+
+
 def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path):
     """ Main training loop
 
@@ -362,6 +400,9 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
 
     val_func = NNValueFunction(obs_dim, logger, restore_path)
     policy = Policy(obs_dim, act_dim, kl_targ, logger, restore_path)
+
+    log_train_info(logger, -1, start_time_str, gait_name, gait_length, batch_size, restore_path)
+
     # run a few episodes of untrained policy to initialize scaler:
     episode = 0
     try:
@@ -399,40 +440,19 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
             logger.write(display=True)  # write logger results to file and stdout
             print("Estimated time left: {}\n".format(estimate_time_left(episode, num_episodes, train_time)))
 
-            if animation_mode > 0 and episode % 1000 == 0:
-                run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='epizode_{}'.format(episode))
+            if episode % 1000 == 0:
+                policy.save()
+                val_func.save()
+                print("Data saved at {}\n".format(logger.path))
+                update_train_info(logger, episode)
+                if animation_mode > 0:
+                    run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='epizode_{}'.format(episode))
             if killer.kill_now:
                 # if input('Terminate training (y/[n])? ') == 'y':
                 #     break
                 # killer.kill_now = False
                 break
     finally:
-        if num_episodes > 0:
-            # write train info
-            with open(logger.path + '/train_info.txt', 'w+') as finfo:
-                finfo.write("\tTrain info:\n")
-                finfo.write("Date:\t\t{}\n".format(start_time_str))
-                finfo.write("Epizodes:\t\t{}\n".format(num_episodes))
-                finfo.write("gait_name:\t\t{}\n".format(gait_name))
-                if gait_name is not None:
-                    finfo.write("gait_length:\t\t{}\n".format(gait_length))
-                finfo.write("batch_size:\t\t{}\n".format(batch_size))
-                finfo.write("Data path:\t\t{}\n".format(logger.path))
-                finfo.write("restore_path:\t\t{}\n".format(restore_path))
-        else:
-            # copy info if inference
-            open_mode = 'a'
-            try:
-                shutil.copy(restore_path + '/train_info.txt', logger.path + '/train_info.txt')
-            except Exception as e:
-                print(e)
-                open_mode = 'w+'
-            with open(logger.path + '/train_info.txt', open_mode) as finfo:
-                finfo.write("\n\tRendering inference:\n")
-                finfo.write("Data path:\t\t{}\n".format(restore_path))
-                finfo.write("Results path:\t\t{}\n".format(logger.path))
-                finfo.write("Date:\t\t{}\n".format(start_time_str))
-
         if animation_mode > 0:
             print("Rendering result video")
             try:

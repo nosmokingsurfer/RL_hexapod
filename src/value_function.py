@@ -119,6 +119,7 @@ class NNValueFunction(object):
         self.sess.close()
 
     def save(self):
+        print("Saving value dump")
         path = os.path.join(self.logger.path, 'value_dump')
         try:
             os.makedirs(path)

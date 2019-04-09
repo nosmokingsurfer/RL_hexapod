@@ -230,7 +230,7 @@ class Policy(object):
         self.sess.close()
 
     def save(self):
-        print("Saving policy_dump")
+        print("Saving policy dump")
         path = os.path.join(self.logger.path, 'policy_dump')
         try:
             os.makedirs(path)
