@@ -350,8 +350,7 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     # restore_path = os.path.abspath(restore_path)
     env, obs_dim, act_dim = init_gym(env_name)
     log_rewards = (num_episodes == 0)
-    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length,
-                       out_path=out_path, log_rewards=log_rewards, render_mode=animation_mode)
+    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=out_path, log_rewards=log_rewards, render_mode=animation_mode)
     env_list = []
     if thread_count > 1:
         env_list, obs_dim, act_dim = init_gyms(env_name, batch_size)

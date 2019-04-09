@@ -17,7 +17,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     def __init__(self):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
 
-    def set_params(self, gait_name = None, gait_cycle_len = 30, out_path='./walk_analyse/', log_rewards=False, render_mode=0):
+    def set_params(self, gaits_config_path='./walk_analyse/', gait_name = None, gait_cycle_len = 30, out_path='./walk_analyse/', log_rewards=False, render_mode=0):
+        self.gaits_config_path = gaits_config_path
         self.gait_name = gait_name
         self.gait_cycle_len = gait_cycle_len
         self.out_path = out_path
