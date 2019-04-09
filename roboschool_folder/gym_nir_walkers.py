@@ -5,23 +5,35 @@ import csv
 class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     foot_list = ['front_left_foot', 'front_right_foot', 'mid_left_foot', 'mid_right_foot', 'back_left_foot', 'back_right_foot']
     foot_colors = ['#000000', '#cc7f4d', '#00667f', '#ff667f', '#7f7f7f', '#00ff7f']
-    # todo: убрать в параметры скрипта всё что ниже
-    gait_name = "triple"
+    # Defaults:
+    gaits_config_path = './walk_analyse/'
+    out_path = './walk_analyse/'
+    gait_name = None
     gait_cycle_len = 30
-    bad_contact_reward = -0.1
+    contact_reward = 0.1
     log_rewards = False;
+    render_mode = 0;
 
     def __init__(self):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
-        self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
-        gdf = pd.read_csv('./walk_analyse/gaits.csv') #todo: убрать путь в параметры скрипта
-        self.gaits = gdf.set_index('gait_name').T.to_dict()
-        self.desired_contacts = generate_points(self.gaits[self.gait_name], self.gait_cycle_len)
-        self.main_leg_last_contact = False;
-        self.gait_step = 0;
+
+    def set_params(self, gait_name = None, gait_cycle_len = 30, out_path='./walk_analyse/', log_rewards=False, render_mode=0):
+        self.gait_name = gait_name
+        self.gait_cycle_len = gait_cycle_len
+        self.out_path = out_path
+        self.log_rewards = log_rewards
+        self.render_mode = render_mode
+
+        if self.gait_name is not None:
+            self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
+            gdf = pd.read_csv(os.path.join(self.gaits_config_path,'gaits.csv'))
+            self.gaits = gdf.set_index('gait_name').T.to_dict()
+            self.desired_contacts = generate_points(self.gaits[self.gait_name], self.gait_cycle_len)
+            self.main_leg_last_contact = False;
+            self.gait_step = 0;
 
         if self.log_rewards:
-            self.f = open('./walk_analyse/reward_log.csv', 'w')  #todo: убрать путь в параметры скрипта
+            self.f = open(os.path.join(self.out_path,'reward_log.csv'), 'w')
             fieldnames = ['alive', 'progress', 'electricity_cost', 'joints_at_limit_cost', 'feet_collision_cost',
                                'gait_reward']
             self.writer = csv.DictWriter(self.f, fieldnames=fieldnames)
@@ -41,19 +53,23 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             self.scene.human_render_detected = True
             return self.scene.cpp_world.test_window()
         elif mode=="rgb_array":
-            self.camera_follow_top()
-            rgb, _, _, _, _ = self.camera.render(False, False, False) # render_depth, render_labeling, print_timing)
-            rendered_rgb1 = np.fromstring(rgb, dtype=np.uint8).reshape( (self.VIDEO_H,self.VIDEO_W,3) )
+            if self.render_mode == 0:
+                return None
 
             self.camera_follow_side()
             rgb, _, _, _, _ = self.camera.render(False, False, False)  # render_depth, render_labeling, print_timing)
-            rendered_rgb2 = np.fromstring(rgb, dtype=np.uint8).reshape((self.VIDEO_H, self.VIDEO_W, 3))
+            rendered_rgb1 = np.fromstring(rgb, dtype=np.uint8).reshape((self.VIDEO_H, self.VIDEO_W, 3))
 
-            rendered_rgb3 = self.feet_graph.draw_contacts(self.feet_contact)
+            if self.render_mode == 2:
+                self.camera_follow_top()
+                rgb, _, _, _, _ = self.camera.render(False, False, False)
+                rendered_rgb2 = np.fromstring(rgb, dtype=np.uint8).reshape( (self.VIDEO_H,self.VIDEO_W,3) )
+                rendered_rgb3 = self.feet_graph.draw_contacts(self.feet_contact)
+                rendered_rgb = np.concatenate((rendered_rgb2, rendered_rgb1),axis=1)
+                rendered_rgb = np.concatenate((rendered_rgb, rendered_rgb3),axis=0)
+                return rendered_rgb
+            return rendered_rgb1
 
-            rendered_rgb = np.concatenate((rendered_rgb1, rendered_rgb2),axis=1)
-            rendered_rgb = np.concatenate((rendered_rgb, rendered_rgb3),axis=0)
-            return rendered_rgb
         else:
             assert(0)
 
@@ -112,16 +128,17 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
 
         ###############
         gait_reward = 0
-        contacts = state[32:37]
-        if (self.main_leg_last_contact is False and contacts[0] is True):
-            self.gait_step = 0
-        if self.gait_step >= self.gait_cycle_len:
-            self.gait_step = 0
-        self.main_leg_last_contact = contacts[0]
-        for i in range(len(contacts)):
-            if contacts[i] != self.desired_contacts[self.gait_step][i]:
-                gait_reward += self.bad_contact_reward
-        self.gait_step += 1
+        if self.gait_name is not None:
+            contacts = state[32:37]
+            if (self.main_leg_last_contact is False and contacts[0] is True):
+                self.gait_step = 0
+            if self.gait_step >= self.gait_cycle_len:
+                self.gait_step = 0
+            self.main_leg_last_contact = contacts[0]
+            for i in range(len(contacts)):
+                if contacts[i] == self.desired_contacts[self.gait_step][i]:
+                    gait_reward += self.contact_reward
+            self.gait_step += 1
         ###############
 
         self.rewards = [
@@ -154,7 +171,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         return state, sum(self.rewards), bool(done), {}
 
     def __del__(self):
-        self.f.close()
+        if self.log_rewards:
+            self.f.close()
 
 
 
@@ -209,7 +227,6 @@ def generate_points(d, T):
         start_contact = int(T * d["phi"+str(i+1)])
         end_contact = int(T * ((d['beta'] + d["phi"+str(i+1)]) % 1))
         if start_contact > end_contact:
-#             print("revert")
             for j in range(0, end_contact, 1):
                 feet_data[j,i] = 1
             for j in range(end_contact, start_contact, 1):
@@ -219,5 +236,7 @@ def generate_points(d, T):
         else:
             for j in range(start_contact, end_contact, 1):
                 feet_data[j,i] = 1
-#         print(start_contact, end_contact)
     return feet_data
+
+
+# rendering in script params

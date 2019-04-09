@@ -37,6 +37,7 @@ import os
 import argparse
 import signal
 import imageio
+import shutil
 from multiprocessing.pool import ThreadPool
 
 
@@ -119,9 +120,6 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
             reward = np.asscalar(reward)
         rewards.append(reward)
         step += 1e-3  # increment time step feature
-        #debug
-        # if step > 0.2:
-        #     break
 
     if animate:
         p = '~/Desktop'
@@ -337,7 +335,7 @@ def estimate_time_left(episode, num_episodes, train_time):
     return '{:02}:{:02}:{:02}'.format(int(hours), int(minutes), int(seconds))
 
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count):
+def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length):
     """ Main training loop
 
     Args:
@@ -351,6 +349,8 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     killer = GracefulKiller()
     # restore_path = os.path.abspath(restore_path)
     env, obs_dim, act_dim = init_gym(env_name)
+    log_rewards = (num_episodes == 0)
+    env.env.set_params(gait_name=gait_name, gait_cycle_len=gait_length, out_path=out_path, log_rewards=log_rewards, render_mode=animation_mode)
     env_list = []
     if thread_count > 1:
         env_list, obs_dim, act_dim = init_gyms(env_name, batch_size)
@@ -358,14 +358,12 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     start_time = datetime.now()  # create unique directories
     start_time_str = start_time.strftime("%b-%d/%H.%M.%S")
     logger = Logger(logname=env_name, now=start_time_str, out_path=out_path)
-    # TODO: wtf is Monitor?
-    # aigym_path = os.path.join('/tmp', env_name, start_time_str)
-    # env = wrappers.Monitor(env, aigym_path, force=True)
     scaler = Scaler(obs_dim)
 
     val_func = NNValueFunction(obs_dim, logger, restore_path)
     policy = Policy(obs_dim, act_dim, kl_targ, logger, restore_path)
     # run a few episodes of untrained policy to initialize scaler:
+    episode = 0
     try:
         if restore_path is None:
             print("\nInitializing scaler (may take some time)... ")
@@ -373,7 +371,6 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
             print("Done\n")
         else:
             scaler.load(restore_path, obs_dim)
-        episode = 0
 
         while episode < num_episodes:
             sim_time = datetime.now()
@@ -402,7 +399,7 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
             logger.write(display=True)  # write logger results to file and stdout
             print("Estimated time left: {}\n".format(estimate_time_left(episode, num_episodes, train_time)))
 
-            if episode % 1000 == 0:
+            if animation_mode > 0 and episode % 1000 == 0:
                 run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='epizode_{}'.format(episode))
             if killer.kill_now:
                 # if input('Terminate training (y/[n])? ') == 'y':
@@ -410,15 +407,42 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
                 # killer.kill_now = False
                 break
     finally:
-        print("Rendering result video")
-        try:
-            trajectories = run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='final_epizode_{}'.format(episode))
-            # for 3D visualization
-            for t in trajectories:
-                logger.log_trajectory(t)
-        except Exception as e:
-            print("Failed to animate results, error: {}".format(e))
-            raise e
+        if num_episodes > 0:
+            # write train info
+            with open(logger.path + '/train_info.txt', 'w+') as finfo:
+                finfo.write("\tTrain info:\n")
+                finfo.write("Date:\t\t{}\n".format(start_time_str))
+                finfo.write("Epizodes:\t\t{}\n".format(num_episodes))
+                finfo.write("gait_name:\t\t{}\n".format(gait_name))
+                if gait_name is not None:
+                    finfo.write("gait_length:\t\t{}\n".format(gait_length))
+                finfo.write("batch_size:\t\t{}\n".format(batch_size))
+                finfo.write("Data path:\t\t{}\n".format(logger.path))
+                finfo.write("restore_path:\t\t{}\n".format(restore_path))
+        else:
+            # copy info if inference
+            open_mode = 'a'
+            try:
+                shutil.copy(restore_path + '/train_info.txt', logger.path + '/train_info.txt')
+            except Exception as e:
+                print(e)
+                open_mode = 'w+'
+            with open(logger.path + '/train_info.txt', open_mode) as finfo:
+                finfo.write("\n\tRendering inference:\n")
+                finfo.write("Data path:\t\t{}\n".format(restore_path))
+                finfo.write("Results path:\t\t{}\n".format(logger.path))
+                finfo.write("Date:\t\t{}\n".format(start_time_str))
+
+        if animation_mode > 0:
+            print("Rendering result video")
+            try:
+                trajectories = run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='final_epizode_{}'.format(episode))
+                # for walk analysis
+                for t in trajectories:
+                    logger.log_trajectory(t)
+            except Exception as e:
+                print("Failed to animate results, error: {}".format(e))
+                raise e
 
         scaler.save(logger.path)
         logger.close()
@@ -449,6 +473,14 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--thread_count', type=int,
                         help='Number of threads',
                         default=1)
+    parser.add_argument('-a', '--animation_mode', type=int, help='Animation mode, 0 - no animation, 1 - side, 2 - top + side + graph',
+                        default=0)
+    parser.add_argument('-gn', '--gait_name', type=str,
+                        help='Gait to train. Default training without any gait',
+                        default=None)
+    parser.add_argument('-gl', '--gait_length', type=int,
+                        help='Gait cycle length',
+                        default=30)
 
     args = parser.parse_args()
     main(**vars(args))

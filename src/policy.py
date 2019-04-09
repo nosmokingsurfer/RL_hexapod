@@ -5,6 +5,7 @@ Written by Patrick Coady (pat-coady.github.io)
 """
 import numpy as np
 import tensorflow as tf
+import csv
 import os
 
 
@@ -27,6 +28,12 @@ class Policy(object):
         self.act_dim = act_dim
         self.restore_path = restore_path
         self.logger = logger
+        if restore_path is not None:
+            with open(os.path.join(restore_path, 'log.csv'), 'r') as f:
+                row = list(csv.DictReader(f))[-1]
+                self.beta = float(row["Beta"])
+                self.lr_multiplier = float(row["_lr_multiplier"])
+                print("policy restored params:\n\tbeta: {}\n\tlr_multiplier: {}\n".format(self.beta,self.lr_multiplier))
         self._build_graph()
         self.writer = tf.summary.FileWriter(self.logger.path + '/policy_dump/writer', self.sess.graph)
 
