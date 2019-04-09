@@ -335,7 +335,7 @@ def estimate_time_left(episode, num_episodes, train_time):
     return '{:02}:{:02}:{:02}'.format(int(hours), int(minutes), int(seconds))
 
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length):
+def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path):
     """ Main training loop
 
     Args:
@@ -350,7 +350,8 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     # restore_path = os.path.abspath(restore_path)
     env, obs_dim, act_dim = init_gym(env_name)
     log_rewards = (num_episodes == 0)
-    env.env.set_params(gait_name=gait_name, gait_cycle_len=gait_length, out_path=out_path, log_rewards=log_rewards, render_mode=animation_mode)
+    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length,
+                       out_path=out_path, log_rewards=log_rewards, render_mode=animation_mode)
     env_list = []
     if thread_count > 1:
         env_list, obs_dim, act_dim = init_gyms(env_name, batch_size)
@@ -475,6 +476,9 @@ if __name__ == "__main__":
                         default=1)
     parser.add_argument('-a', '--animation_mode', type=int, help='Animation mode, 0 - no animation, 1 - side, 2 - top + side + graph',
                         default=0)
+    parser.add_argument('-gcp', '--gaits_config_path', type=str,
+                        help='Path for directory containing gait.csv',
+                        default='./walk_analyse')
     parser.add_argument('-gn', '--gait_name', type=str,
                         help='Gait to train. Default training without any gait',
                         default=None)
