@@ -336,18 +336,19 @@ def estimate_time_left(episode, num_episodes, train_time):
 
 
 def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path):
-    if num_episodes == -1:
+    if num_episodes > 0:
         # log train info
         with open(logger.path + '/train_info.txt', 'w+') as finfo:
             finfo.write("\tTrain info:\n")
-            finfo.write("Date:\t\t{}\n".format(start_time_str))
-            finfo.write("Epizodes:\t\t{}\n".format(num_episodes))
+            finfo.write("Date:    \t\t{}\n".format(start_time_str))
+            finfo.write("Epizodes:\t\t{}\n".format(-1))
             finfo.write("gait_name:\t\t{}\n".format(gait_name))
             if gait_name is not None:
                 finfo.write("gait_length:\t\t{}\n".format(gait_length))
             finfo.write("batch_size:\t\t{}\n".format(batch_size))
-            finfo.write("Data path:\t\t{}\n".format(logger.path))
-            finfo.write("restore_path:\t\t{}\n\n".format(restore_path))
+            finfo.write("Restore path:\t\t{}\n\n".format(restore_path))
+            finfo.write("Out path:\t\t{}\n".format(logger.path))
+
     else:
         # copy info if inference
         open_mode = 'a'
@@ -358,9 +359,10 @@ def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length,
             open_mode = 'w+'
         with open(logger.path + '/train_info.txt', open_mode) as finfo:
             finfo.write("\n\tRendering inference:\n")
-            finfo.write("Data path:\t\t{}\n".format(restore_path))
-            finfo.write("Results path:\t\t{}\n".format(logger.path))
-            finfo.write("Date:\t\t{}\n\n".format(start_time_str))
+            finfo.write("Date:    \t\t{}\n".format(start_time_str))
+            finfo.write("Restore path:\t\t{}\n".format(restore_path))
+            finfo.write("Out path:\t\t{}\n\n".format(logger.path))
+
 
 
 def update_train_info(logger, num_episodes):
@@ -388,7 +390,6 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     # restore_path = os.path.abspath(restore_path)
     env, obs_dim, act_dim = init_gym(env_name)
     log_rewards = (num_episodes == 0)
-    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=out_path, log_rewards=log_rewards, render_mode=animation_mode)
     env_list = []
     if thread_count > 1:
         env_list, obs_dim, act_dim = init_gyms(env_name, batch_size)
@@ -396,12 +397,13 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     start_time = datetime.now()  # create unique directories
     start_time_str = start_time.strftime("%b-%d/%H.%M.%S")
     logger = Logger(logname=env_name, now=start_time_str, out_path=out_path)
+    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode)
     scaler = Scaler(obs_dim)
 
     val_func = NNValueFunction(obs_dim, logger, restore_path)
     policy = Policy(obs_dim, act_dim, kl_targ, logger, restore_path)
 
-    log_train_info(logger, -1, start_time_str, gait_name, gait_length, batch_size, restore_path)
+    log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path)
 
     # run a few episodes of untrained policy to initialize scaler:
     episode = 0

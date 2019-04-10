@@ -16,6 +16,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
 
     def __init__(self):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
+        self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
 
     def set_params(self, gaits_config_path='./walk_analyse/', gait_name = None, gait_cycle_len = 30, out_path='./walk_analyse/', log_rewards=False, render_mode=0):
         self.gaits_config_path = gaits_config_path
@@ -26,7 +27,6 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         self.render_mode = render_mode
 
         if self.gait_name is not None:
-            self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
             gdf = pd.read_csv(os.path.join(self.gaits_config_path,'gaits.csv'))
             self.gaits = gdf.set_index('gait_name').T.to_dict()
             self.desired_contacts = generate_points(self.gaits[self.gait_name], self.gait_cycle_len)
