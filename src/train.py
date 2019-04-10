@@ -445,6 +445,7 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
             if episode % 1000 == 0:
                 policy.save()
                 val_func.save()
+                scaler.save(logger.path)
                 print("Data saved at {}\n".format(logger.path))
                 update_train_info(logger, episode)
                 if animation_mode > 0:
