@@ -35,7 +35,7 @@ class Policy(object):
                 self.lr_multiplier = float(row["_lr_multiplier"])
                 print("policy restored params:\n\tbeta: {}\n\tlr_multiplier: {}\n".format(self.beta,self.lr_multiplier))
         self._build_graph()
-        self.writer = tf.summary.FileWriter(self.logger.path + '/policy_dump/writer', self.sess.graph)
+        self.writer = tf.summary.FileWriter(os.path.join(self.logger.path, 'policy_dump', 'writer'), self.sess.graph)
 
     def _build_graph(self):
         """ Build and initialize TensorFlow graph """
@@ -53,7 +53,7 @@ class Policy(object):
             # self.sess.run(self.init)
             if self.restore_path is not None:
                 print("Restoring policy graph ")
-                self.saver.restore(self.sess, self.restore_path + '/policy_dump/policy_dump')
+                self.saver.restore(self.sess, os.path.join(self.restore_path, 'policy_dump', 'policy_dump'))
             else:
                 self.sess.run(self.init)
 
@@ -236,4 +236,4 @@ class Policy(object):
             os.makedirs(path)
         except:
             pass
-        self.saver.save(self.sess, '{}/policy_dump'.format(path))
+        self.saver.save(self.sess, os.path.join(path, 'policy_dump'))

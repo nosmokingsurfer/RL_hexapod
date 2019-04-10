@@ -27,7 +27,7 @@ class NNValueFunction(object):
         self._build_graph()
         # self.sess = tf.Session(graph=self.g)
         # self.sess.run(self.init)
-        self.writer = tf.summary.FileWriter(self.logger.path + '/value_dump/writer', self.sess.graph)
+        self.writer = tf.summary.FileWriter(os.path.join(self.logger.path, 'value_dump','writer'), self.sess.graph)
 
     def _build_graph(self):
         """ Construct TensorFlow graph, including loss function, init op and train op """
@@ -66,7 +66,7 @@ class NNValueFunction(object):
             self.saver = tf.train.Saver(max_to_keep = 20)
             if self.restore_path is not None:
                 print("Restoring value function graph")
-                self.saver.restore(self.sess, self.restore_path + 'value_dump/value_dump')
+                self.saver.restore(self.sess, os.path.join(self.restore_path, 'value_dump', 'value_dump'))
             else:
                 self.sess.run(self.init)
 
@@ -125,4 +125,4 @@ class NNValueFunction(object):
             os.makedirs(path)
         except:
             pass
-        self.saver.save(self.sess, '{}/value_dump'.format(path))
+        self.saver.save(self.sess, os.path.join(path, 'value_dump'))
