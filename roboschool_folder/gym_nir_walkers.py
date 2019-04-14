@@ -11,6 +11,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     gait_name = None
     gait_cycle_len = 30
     contact_reward = 0.1
+    use_reward = 63
     log_rewards = False;
     render_mode = 0;
 
@@ -18,13 +19,14 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
         self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
 
-    def set_params(self, gaits_config_path='./walk_analyse/', gait_name = None, gait_cycle_len = 30, out_path='./walk_analyse/', log_rewards=False, render_mode=0):
+    def set_params(self, gaits_config_path='./walk_analyse/', gait_name = None, gait_cycle_len = 30, out_path='./walk_analyse/', log_rewards=False, render_mode=0, reward_mask = 63):
         self.gaits_config_path = gaits_config_path
         self.gait_name = gait_name
         self.gait_cycle_len = gait_cycle_len
         self.out_path = out_path
         self.log_rewards = log_rewards
         self.render_mode = render_mode
+        self.use_reward = [reward_mask & 1, reward_mask & 2, reward_mask & 4, reward_mask & 8, reward_mask & 16, reward_mask & 32]
 
         if self.gait_name is not None:
             gdf = pd.read_csv(os.path.join(self.gaits_config_path,'gaits.csv'))
@@ -97,6 +99,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         x, y, z = self.body_xyz
         self.camera.move_and_look_at(x, y-3.0, z, x, y, z)
 
+
+
     def _step(self, a):
         if not self.scene.multiplayer:  # if multiplayer, action first applied to all robots, then global step() called, then _step() for all robots with the same actions
             self.apply_action(a)
@@ -104,42 +108,57 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
 
         state = self.calc_state()  # also calculates self.joints_at_limit
 
+        alive = 0
+        progress = 0
+        electricity_cost = 0
+        joints_at_limit_cost = 0
+        feet_collision_cost =  0.0
+        gait_reward = 0
+
         alive = float(self.alive_bonus(state[0]+self.initial_z, self.body_rpy[1]))   # state[0] is body height above ground, body_rpy[1] is pitch
         done = alive < 0
         if not np.isfinite(state).all():
             print("~INF~", state)
             done = True
 
-        potential_old = self.potential
-        self.potential = self.calc_potential()
-        progress = float(self.potential - potential_old)
+        if self.use_reward[0] is False:
+            alive = 0
 
-        feet_collision_cost = 0.0
-        for i,f in enumerate(self.feet):
-            contact_names = set(x.name for x in f.contact_list())
-            #print("CONTACT OF '%s' WITH %s" % (f.name, ",".join(contact_names)) )
-            self.feet_contact[i] = 1.0 if (self.foot_ground_object_names & contact_names) else 0.0
-            if contact_names - self.foot_ground_object_names:
-                feet_collision_cost += self.foot_collision_cost
+        if self.use_reward[1]:
+            potential_old = self.potential
+            self.potential = self.calc_potential()
+            progress = float(self.potential - potential_old)
 
-        electricity_cost  = self.electricity_cost  * float(np.abs(a*self.joint_speeds).mean())  # let's assume we have DC motor with controller, and reverse current braking
-        electricity_cost += self.stall_torque_cost * float(np.square(a).mean())
+        # feet_collision_cost = 0.0
+        if self.use_reward[2]:
+            for i,f in enumerate(self.feet):
+                contact_names = set(x.name for x in f.contact_list())
+                #print("CONTACT OF '%s' WITH %s" % (f.name, ",".join(contact_names)) )
+                self.feet_contact[i] = 1.0 if (self.foot_ground_object_names & contact_names) else 0.0
+                if contact_names - self.foot_ground_object_names:
+                    feet_collision_cost += self.foot_collision_cost
 
-        joints_at_limit_cost = float(self.joints_at_limit_cost * self.joints_at_limit)
+        if self.use_reward[3]:
+            electricity_cost  = self.electricity_cost  * float(np.abs(a*self.joint_speeds).mean())  # let's assume we have DC motor with controller, and reverse current braking
+            electricity_cost += self.stall_torque_cost * float(np.square(a).mean())
+
+        if self.use_reward[4]:
+            joints_at_limit_cost = float(self.joints_at_limit_cost * self.joints_at_limit)
 
         ###############
-        gait_reward = 0
-        if self.gait_name is not None:
-            contacts = state[32:37]
-            if (self.main_leg_last_contact is False and contacts[0] is True):
-                self.gait_step = 0
-            if self.gait_step >= self.gait_cycle_len:
-                self.gait_step = 0
-            self.main_leg_last_contact = contacts[0]
-            for i in range(len(contacts)):
-                if contacts[i] == self.desired_contacts[self.gait_step][i]:
-                    gait_reward += self.contact_reward
-            self.gait_step += 1
+        # gait_reward = 0
+        if self.use_reward[5]:
+            if self.gait_name is not None:
+                contacts = state[32:37]
+                if (self.main_leg_last_contact is False and contacts[0] is True):
+                    self.gait_step = 0
+                if self.gait_step >= self.gait_cycle_len:
+                    self.gait_step = 0
+                self.main_leg_last_contact = contacts[0]
+                for i in range(len(contacts)):
+                    if contacts[i] == self.desired_contacts[self.gait_step][i]:
+                        gait_reward += self.contact_reward
+                self.gait_step += 1
         ###############
 
         self.rewards = [

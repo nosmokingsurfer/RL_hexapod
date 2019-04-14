@@ -335,7 +335,11 @@ def estimate_time_left(episode, num_episodes, train_time):
     return '{:02}:{:02}:{:02}'.format(int(hours), int(minutes), int(seconds))
 
 
-def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path):
+def check_mask(mask, value):
+    return "ON" if mask & value != 0 else "OFF"
+
+
+def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask):
     if num_episodes > 0:
         # log train info
         with open(logger.path + '/train_info.txt', 'w+') as finfo:
@@ -345,10 +349,17 @@ def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length,
             finfo.write("gait_name:\t\t{}\n".format(gait_name))
             if gait_name is not None:
                 finfo.write("gait_length:\t\t{}\n".format(gait_length))
-            finfo.write("batch_size:\t\t{}\n".format(batch_size))
-            finfo.write("Restore path:\t\t{}\n\n".format(restore_path))
-            finfo.write("Out path:\t\t{}\n".format(logger.path))
+            finfo.write("rewards: (mask={})\n".format(reward_mask))
+            finfo.write("  [{}]\talive:\n".format(check_mask(reward_mask, 1)))
+            finfo.write("  [{}]\tprogress\n".format(check_mask(reward_mask, 2)))
+            finfo.write("  [{}]\telectricity_cost\n".format(check_mask(reward_mask, 4)))
+            finfo.write("  [{}]\tjoints_at_limit_cost\n".format(check_mask(reward_mask, 8)))
+            finfo.write("  [{}]\tfeet_collision_cost\n".format(check_mask(reward_mask, 16)))
+            finfo.write("  [{}]\tgait_reward\n".format(check_mask(reward_mask, 32)))
 
+            finfo.write("batch_size:\t\t{}\n".format(batch_size))
+            finfo.write("Restore path:\t\t{}\n".format(restore_path))
+            finfo.write("Out path:\t\t{}\n".format(logger.path))
     else:
         # copy info if inference
         open_mode = 'a'
@@ -375,7 +386,7 @@ def update_train_info(logger, num_episodes):
 
 
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path):
+def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask):
     """ Main training loop
 
     Args:
@@ -397,13 +408,13 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     start_time = datetime.now()  # create unique directories
     start_time_str = start_time.strftime("%b-%d/%H.%M.%S")
     logger = Logger(logname=env_name, now=start_time_str, out_path=out_path)
-    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode)
+    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode, reward_mask=reward_mask)
     scaler = Scaler(obs_dim)
 
     val_func = NNValueFunction(obs_dim, logger, restore_path)
     policy = Policy(obs_dim, act_dim, kl_targ, logger, restore_path)
 
-    log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path)
+    log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask)
 
     # run a few episodes of untrained policy to initialize scaler:
     episode = 0
@@ -507,6 +518,9 @@ if __name__ == "__main__":
     parser.add_argument('-gl', '--gait_length', type=int,
                         help='Gait cycle length',
                         default=30)
+    parser.add_argument('-rwm', '--reward_mask', type=int,
+                        help='enable/disable rewards',
+                        default=63)
 
     args = parser.parse_args()
     main(**vars(args))
