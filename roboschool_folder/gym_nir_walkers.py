@@ -10,7 +10,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     out_path = './walk_analyse/'
     gait_name = None
     gait_cycle_len = 30
-    contact_reward = 0.1
+    contact_reward = 0.2
     use_reward = 63
     log_rewards = False;
     render_mode = 0;
@@ -121,7 +121,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             print("~INF~", state)
             done = True
 
-        if self.use_reward[0] is False:
+        if not self.use_reward[0]:
             alive = 0
 
         if self.use_reward[1]:
