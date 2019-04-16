@@ -386,7 +386,7 @@ def update_train_info(logger, num_episodes):
 
 
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask):
+def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask, log_rewards):
     """ Main training loop
 
     Args:
@@ -400,7 +400,7 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     killer = GracefulKiller()
     # restore_path = os.path.abspath(restore_path)
     env, obs_dim, act_dim = init_gym(env_name)
-    log_rewards = (num_episodes == 0)
+    log_rewards = log_rewards or (num_episodes == 0)
     env_list = []
     if thread_count > 1:
         env_list, obs_dim, act_dim = init_gyms(env_name, batch_size)
@@ -521,6 +521,9 @@ if __name__ == "__main__":
     parser.add_argument('-rwm', '--reward_mask', type=int,
                         help='enable/disable rewards',
                         default=63)
+    parser.add_argument('-lr', '--log_rewards', type=bool,
+                        help='enable/disable rewards log in training',
+                        default=False)
 
     args = parser.parse_args()
     main(**vars(args))
