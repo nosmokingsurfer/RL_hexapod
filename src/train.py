@@ -69,6 +69,9 @@ def init_gym(env_name):
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
 
+    # ROBOSCHOOL DIFFERENT VERSIONS FIX
+    env.env.step = env.env._step
+
     return env, obs_dim, act_dim
 
 
