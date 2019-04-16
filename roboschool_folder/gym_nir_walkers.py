@@ -14,6 +14,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     use_reward = [True for i in range(6)]
     log_rewards = False;
     render_mode = 0;
+    correct_step_call = False
 
     def __init__(self):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
@@ -115,6 +116,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         joints_at_limit_cost = 0
         feet_collision_cost =  0.0
         gait_reward = 0
+        self.correct_step_call = True
 
         alive = float(self.alive_bonus(state[0]+self.initial_z, self.body_rpy[1]))   # state[0] is body height above ground, body_rpy[1] is pitch
         done = alive < 0
