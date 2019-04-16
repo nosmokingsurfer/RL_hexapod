@@ -467,7 +467,7 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
                 # killer.kill_now = False
                 break
     finally:
-        if animation_mode > 0:
+        if animation_mode > 0 or num_episodes == 0:
             print("Rendering result video")
             try:
                 trajectories = run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='final_epizode_{}'.format(episode))

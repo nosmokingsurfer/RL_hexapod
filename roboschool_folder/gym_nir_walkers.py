@@ -11,7 +11,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     gait_name = None
     gait_cycle_len = 30
     contact_reward = 0.2
-    use_reward = 63
+    use_reward = [True for i in range(6)]
     log_rewards = False;
     render_mode = 0;
 
@@ -26,7 +26,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         self.out_path = out_path
         self.log_rewards = log_rewards
         self.render_mode = render_mode
-        self.use_reward = [reward_mask & 1, reward_mask & 2, reward_mask & 4, reward_mask & 8, reward_mask & 16, reward_mask & 32]
+        # self.use_reward = [reward_mask & 1, reward_mask & 2, reward_mask & 4, reward_mask & 8, reward_mask & 16, reward_mask & 32]
+        self.use_reward = [ ((reward_mask & (2**i)) != 0) for i in range(6)]
 
         if self.gait_name is not None:
             gdf = pd.read_csv(os.path.join(self.gaits_config_path,'gaits.csv'))
@@ -191,7 +192,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         return state, sum(self.rewards), bool(done), {}
 
     def __del__(self):
-        if self.log_rewards:
+        if self.log_rewards is True:
             self.f.close()
 
 
