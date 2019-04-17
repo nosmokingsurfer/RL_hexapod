@@ -342,7 +342,7 @@ def check_mask(mask, value):
     return "ON" if mask & value != 0 else "OFF"
 
 
-def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask):
+def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask, gait_reward_weight):
     if num_episodes > 0:
         # log train info
         with open(logger.path + '/train_info.txt', 'w+') as finfo:
@@ -352,6 +352,7 @@ def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length,
             finfo.write("gait_name:\t\t{}\n".format(gait_name))
             if gait_name is not None:
                 finfo.write("gait_length:\t\t{}\n".format(gait_length))
+                finfo.write("gait reward weight:\t\t{}\n".format(gait_reward_weight))
             finfo.write("rewards: (mask={})\n".format(reward_mask))
             finfo.write("  [{}]\talive:\n".format(check_mask(reward_mask, 1)))
             finfo.write("  [{}]\tprogress\n".format(check_mask(reward_mask, 2)))
@@ -359,6 +360,7 @@ def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length,
             finfo.write("  [{}]\tjoints_at_limit_cost\n".format(check_mask(reward_mask, 8)))
             finfo.write("  [{}]\tfeet_collision_cost\n".format(check_mask(reward_mask, 16)))
             finfo.write("  [{}]\tgait_reward\n".format(check_mask(reward_mask, 32)))
+            finfo.write("  [{}]\tuse antireward for mistakes\n".format(check_mask(reward_mask, 64)))
 
             finfo.write("batch_size:\t\t{}\n".format(batch_size))
             finfo.write("Restore path:\t\t{}\n".format(restore_path))
@@ -389,7 +391,7 @@ def update_train_info(logger, num_episodes):
 
 
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask, log_rewards):
+def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask, log_rewards, gait_reward_weight):
     """ Main training loop
 
     Args:
@@ -411,13 +413,13 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     start_time = datetime.now()  # create unique directories
     start_time_str = start_time.strftime("%b-%d/%H.%M.%S")
     logger = Logger(logname=env_name, now=start_time_str, out_path=out_path)
-    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode, reward_mask=reward_mask)
+    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode, reward_mask=reward_mask, contact_reward=gait_reward_weight)
     scaler = Scaler(obs_dim)
 
     val_func = NNValueFunction(obs_dim, logger, restore_path)
     policy = Policy(obs_dim, act_dim, kl_targ, logger, restore_path)
 
-    log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask)
+    log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask, gait_reward_weight)
 
     # run a few episodes of untrained policy to initialize scaler:
     episode = 0
@@ -482,9 +484,11 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
                 raise e
 
         scaler.save(logger.path)
-        logger.close()
         policy.close_sess()
         val_func.close_sess()
+        update_train_info(logger, episode)
+        logger.close()
+
 
 
 if __name__ == "__main__":
@@ -524,6 +528,9 @@ if __name__ == "__main__":
     parser.add_argument('-rwm', '--reward_mask', type=int,
                         help='enable/disable rewards',
                         default=63)
+    parser.add_argument('-grw', '--gait_reward_weight', type=int,
+                        help='leg contact reward',
+                        default=0.2)
     parser.add_argument('-lr', '--log_rewards', type=bool,
                         help='enable/disable rewards log in training',
                         default=False)
