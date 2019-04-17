@@ -10,7 +10,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     out_path = './walk_analyse/'
     gait_name = None
     gait_cycle_len = 30
-    contact_reward = 0.5
+    contact_reward = 0.25
     use_reward = [True for i in range(6)]
     log_rewards = False;
     render_mode = 0;
@@ -164,6 +164,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                 for i in range(len(contacts)):
                     if contacts[i] == self.desired_contacts[self.gait_step][i]:
                         gait_reward += self.contact_reward
+                    else:
+                        gait_reward -= self.contact_reward
                 self.gait_step += 1
         ###############
 
