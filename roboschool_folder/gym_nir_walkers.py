@@ -10,7 +10,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     out_path = './walk_analyse/'
     gait_name = None
     gait_cycle_len = 30
-    contact_reward = 0.2
+    contact_reward = 0.5
     use_reward = [True for i in range(6)]
     log_rewards = False;
     render_mode = 0;
@@ -130,7 +130,10 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         if self.use_reward[1]:
             potential_old = self.potential
             self.potential = self.calc_potential()
-            progress = float(self.potential - potential_old)
+            progress = float(self.potential - potential_old) 
+            # clip progress to prevent speed increase
+            if progress > 2.0:
+                progress = 2.0
 
         # feet_collision_cost = 0.0
         if self.use_reward[2]:
