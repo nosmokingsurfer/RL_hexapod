@@ -221,9 +221,9 @@ class Policy(object):
             if self.beta < (1 / 30) and self.lr_multiplier < 10:
                 self.lr_multiplier *= 1.5
 
-        logger.log({'PolicyLoss': loss,
-                    'PolicyEntropy': entropy,
-                    'KL': kl,
+        logger.log({'_PolicyLoss': loss,
+                    '_PolicyEntropy': entropy,
+                    '_KL': kl,
                     'Beta': self.beta,
                     '_lr_multiplier': self.lr_multiplier})
 

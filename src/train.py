@@ -99,6 +99,7 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
     """
     obs = env.reset()
     observes, actions, rewards, unscaled_obs = [], [], [], []
+    detailed_rewards = np.array([0.0 for _ in range(6)])
     done = False
     step = 0.0
     scale, offset = scaler.get()
@@ -122,6 +123,7 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
         if not isinstance(reward, float):
             reward = np.asscalar(reward)
         rewards.append(reward)
+        detailed_rewards += np.array(env.env.rewards)
         step += 1e-3  # increment time step feature
 
     if animate:
@@ -131,7 +133,7 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
         imageio.mimwrite('{}/{}.mp4'.format(p, anim_name), np.array(rendered_frames), fps=60)
 
     return (np.concatenate(observes), np.concatenate(actions),
-            np.array(rewards, dtype=np.float64), np.concatenate(unscaled_obs))
+            np.array(rewards, dtype=np.float64), np.concatenate(unscaled_obs), np.array(detailed_rewards))
 
 
 def run_policy(env, policy, scaler, logger, episodes, animate=False, anim_name='ant_train'):
@@ -153,26 +155,35 @@ def run_policy(env, policy, scaler, logger, episodes, animate=False, anim_name='
     """
     total_steps = 0
     trajectories = []
+    det_rewards = []
     for e in range(episodes):
         if animate:
             print("animating episode {}/{}".format(e+1, episodes))
-        observes, actions, rewards, unscaled_obs = run_episode(env, policy, scaler, animate=animate, logger=logger, anim_name=anim_name)
+        observes, actions, rewards, unscaled_obs, detailed_rewards = run_episode(env, policy, scaler, animate=animate, logger=logger, anim_name=anim_name)
         total_steps += observes.shape[0]
         trajectory = {'observes': observes,
                       'actions': actions,
                       'rewards': rewards,
                       'unscaled_obs': unscaled_obs}
         trajectories.append(trajectory)
+        det_rewards.append(detailed_rewards)
+    det_rewards = np.array(det_rewards)
     unscaled = np.concatenate([t['unscaled_obs'] for t in trajectories])
     scaler.update(unscaled)  # update running statistics for scaling observations
     logger.log({'_MeanReward': np.mean([t['rewards'].sum() for t in trajectories]),
-                'Steps': total_steps})
+                'Steps': total_steps,
+                '_m_alive': np.mean(det_rewards[:, 0]),
+                '_m_progress': np.mean(det_rewards[:, 1]),
+                '_m_electricity_cost': np.mean(det_rewards[:, 2]),
+                '_m_joints_at_limit_cost': np.mean(det_rewards[:, 3]),
+                '_m_feet_collision_cost': np.mean(det_rewards[:, 4]),
+                '_m_gait_reward': np.mean(det_rewards[:, 5])})
 
     return trajectories
 
 
 def run_episode_wrapper(env, policy, scaler, animate, logger, anim_name):
-    observes, actions, rewards, unscaled_obs = run_episode(env, policy, scaler, animate=animate, logger=logger,
+    observes, actions, rewards, unscaled_obs, detailed_rewards = run_episode(env, policy, scaler, animate=animate, logger=logger,
                                                            anim_name=anim_name)
     trajectory = {'observes': observes,
                   'actions': actions,
@@ -528,7 +539,7 @@ if __name__ == "__main__":
     parser.add_argument('-rwm', '--reward_mask', type=int,
                         help='enable/disable rewards',
                         default=63)
-    parser.add_argument('-grw', '--gait_reward_weight', type=int,
+    parser.add_argument('-grw', '--gait_reward_weight', type=float,
                         help='leg contact reward',
                         default=0.2)
     parser.add_argument('-lr', '--log_rewards', type=bool,

@@ -101,9 +101,9 @@ class NNValueFunction(object):
         loss = np.mean(np.square(y_hat - y))         # explained variance after update
         exp_var = 1 - np.var(y - y_hat) / np.var(y)  # diagnose over-fitting of val func
 
-        logger.log({'ValFuncLoss': loss,
-                    'ExplainedVarNew': exp_var,
-                    'ExplainedVarOld': old_exp_var})
+        logger.log({'_ValFuncLoss': loss,
+                    '_ExplainedVarNew': exp_var,
+                    '_ExplainedVarOld': old_exp_var})
 
     def predict(self, x):
         """ Predict method """
