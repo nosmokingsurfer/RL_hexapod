@@ -132,8 +132,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             potential_old = self.potential
             self.potential = self.calc_potential()
             progress = float(self.potential - potential_old)
-            if progress > 2.0:
-                progress = 2.0
+            if progress > 1.4:
+                progress = 1.4
 
         # feet_collision_cost = 0.0
         if self.use_reward[2]:
