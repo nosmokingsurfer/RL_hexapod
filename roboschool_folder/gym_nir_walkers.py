@@ -174,9 +174,9 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
 
                     # smooth reward for better gradient
                     if contacts[i] == 1:
-                        gait_reward += self.ground_rewards[:,i][self.gait_step]
+                        gait_reward += (self.ground_rewards[:,i][self.gait_step] * self.contact_reward)
                     else:
-                        gait_reward += self.air_rewards[:, i][self.gait_step]
+                        gait_reward += (self.air_rewards[:, i][self.gait_step] * self.contact_reward)
 
                 self.gait_step += 1
         ###############
