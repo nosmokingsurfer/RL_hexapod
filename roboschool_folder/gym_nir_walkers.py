@@ -155,7 +155,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         # gait_reward = 0
         if self.use_reward[5]:
             if self.gait_name is not None:
-                contacts = state[32:37]
+                contacts = state[32:38]
                 if (self.main_leg_last_contact is False and contacts[0] is True):
                     self.gait_step = 0
                 if self.gait_step >= self.gait_cycle_len:

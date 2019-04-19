@@ -140,12 +140,12 @@ class Logger(object):
         for key in log_keys:
             if key[0] != '_':  # don't display log items with leading '_'
                 print('{:s}: {:.3g}'.format(key, log[key]))
-        print('Mean alive:\t\t\t\t\t{:5.2f}'.format(log['_m_alive']))
-        print('Mean progress:\t\t\t\t{:5.2f}'.format(log['_m_progress']))
-        print('Mean electricity_cost:\t\t{:5.2f}'.format(log['_m_electricity_cost']))
-        print('Mean joints_at_limit_cost:\t{:5.2f}'.format(log['_m_joints_at_limit_cost']))
-        print('Mean feet_collision_cost:\t{:5.2f}'.format(log['_m_feet_collision_cost']))
-        print('Mean gait_reward:\t\t\t{:5.2f}'.format(log['_m_gait_reward']))
+        print('Mean alive:  {:5.2f}'.format(log['_m_alive']))
+        print('Mean progress:  {:5.2f}'.format(log['_m_progress']))
+        print('Mean electricity_cost:  {:5.2f}'.format(log['_m_electricity_cost']))
+        print('Mean joints_at_limit_cost:  {:5.2f}'.format(log['_m_joints_at_limit_cost']))
+        print('Mean feet_collision_cost:  {:5.2f}'.format(log['_m_feet_collision_cost']))
+        print('Mean gait_reward:  {:5.2f}'.format(log['_m_gait_reward']))
 
         print('Batch Simulation time : {}'.format(log['_time_simulation']))
         print('Batch Policy train time: {}'.format(log['_time_policy_train']))
