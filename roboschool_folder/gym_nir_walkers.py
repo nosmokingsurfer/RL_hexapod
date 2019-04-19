@@ -1,9 +1,12 @@
 from roboschool.gym_mujoco_walkers import *
 import pandas as pd
+from copy import copy
 import csv
 
+
 class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
-    foot_list = ['front_left_foot', 'front_right_foot', 'mid_left_foot', 'mid_right_foot', 'back_left_foot', 'back_right_foot']
+    foot_list = ['front_left_foot', 'front_right_foot', 'mid_left_foot', 'mid_right_foot', 'back_left_foot',
+                 'back_right_foot']
     foot_colors = ['#000000', '#cc7f4d', '#00667f', '#ff667f', '#7f7f7f', '#00ff7f']
     # Defaults:
     gaits_config_path = './walk_analyse/'
@@ -20,7 +23,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
         self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
 
-    def set_params(self, gaits_config_path='./walk_analyse/', gait_name = None, gait_cycle_len = 30, out_path='./walk_analyse/', log_rewards=False, render_mode=0, reward_mask = 63, contact_reward = 0.5):
+    def set_params(self, gaits_config_path='./walk_analyse/', gait_name=None, gait_cycle_len=30,
+                   out_path='./walk_analyse/', log_rewards=False, render_mode=0, reward_mask=63, contact_reward=0.5):
         self.gaits_config_path = gaits_config_path
         self.gait_name = gait_name
         self.gait_cycle_len = gait_cycle_len
@@ -28,20 +32,22 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         self.log_rewards = log_rewards
         self.render_mode = render_mode
         # self.use_reward = [reward_mask & 1, reward_mask & 2, reward_mask & 4, reward_mask & 8, reward_mask & 16, reward_mask & 32]
-        self.use_reward = [ ((reward_mask & (2**i)) != 0) for i in range(7)]
+        self.use_reward = [((reward_mask & (2 ** i)) != 0) for i in range(7)]
         self.contact_reward = contact_reward
 
         if self.gait_name is not None:
-            gdf = pd.read_csv(os.path.join(self.gaits_config_path,'gaits.csv'))
+            gdf = pd.read_csv(os.path.join(self.gaits_config_path, 'gaits.csv'))
             self.gaits = gdf.set_index('gait_name').T.to_dict()
             self.desired_contacts = generate_points(self.gaits[self.gait_name], self.gait_cycle_len)
+            self.ground_rewards = make_smooth_reward(self.desired_contacts)
+            self.air_rewards = make_smooth_reward(invert_gait(self.desired_contacts))
             self.main_leg_last_contact = False;
             self.gait_step = 0;
 
         if self.log_rewards:
-            self.f = open(os.path.join(self.out_path,'reward_log.csv'), 'w')
+            self.f = open(os.path.join(self.out_path, 'reward_log.csv'), 'w')
             fieldnames = ['alive', 'progress', 'electricity_cost', 'joints_at_limit_cost', 'feet_collision_cost',
-                               'gait_reward']
+                          'gait_reward']
             self.writer = csv.DictWriter(self.f, fieldnames=fieldnames)
             self.writer.writeheader()
 
@@ -55,10 +61,10 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     def _render(self, mode, **kwargs):
         if kwargs.get("stop") is True:
             return
-        if mode=="human":
+        if mode == "human":
             self.scene.human_render_detected = True
             return self.scene.cpp_world.test_window()
-        elif mode=="rgb_array":
+        elif mode == "rgb_array":
             if self.render_mode == 0:
                 return None
 
@@ -69,30 +75,29 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             if self.render_mode == 2:
                 self.camera_follow_top()
                 rgb, _, _, _, _ = self.camera.render(False, False, False)
-                rendered_rgb2 = np.fromstring(rgb, dtype=np.uint8).reshape( (self.VIDEO_H,self.VIDEO_W,3) )
+                rendered_rgb2 = np.fromstring(rgb, dtype=np.uint8).reshape((self.VIDEO_H, self.VIDEO_W, 3))
                 rendered_rgb3 = self.feet_graph.draw_contacts(self.feet_contact)
-                rendered_rgb = np.concatenate((rendered_rgb2, rendered_rgb1),axis=1)
-                rendered_rgb = np.concatenate((rendered_rgb, rendered_rgb3),axis=0)
+                rendered_rgb = np.concatenate((rendered_rgb2, rendered_rgb1), axis=1)
+                rendered_rgb = np.concatenate((rendered_rgb, rendered_rgb3), axis=0)
                 return rendered_rgb
             return rendered_rgb1
 
         else:
-            assert(0)
-
+            assert (0)
 
     def HUD(self, s, a, done):
         active = self.scene.actor_is_active(self)
-        if active and self.done<=2:
+        if active and self.done <= 2:
             self.scene.cpp_world.test_window_history_advance()
             self.scene.cpp_world.test_window_observations(s.tolist())
             self.scene.cpp_world.test_window_actions(a.tolist())
             self.scene.cpp_world.test_window_rewards(self.rewards)
-        if self.done<=1: # Only post score on first time done flag is seen, keep this score if user continues to use env
+        if self.done <= 1:  # Only post score on first time done flag is seen, keep this score if user continues to use env
             info_str = "step: %04i  reward: %07.1f %s" % (self.frame, self.reward, "DONE" if self.done else "")
             if active:
                 self.scene.cpp_world.test_window_score(info_str)
-            self.camera.test_window_score(info_str)  # will appear on video ("rgb_array"), but not on cameras istalled on the robot (because that would be different camera)
-
+            self.camera.test_window_score(
+                info_str)  # will appear on video ("rgb_array"), but not on cameras istalled on the robot (because that would be different camera)
 
     def camera_follow_top(self):
         x, y, z = self.body_xyz
@@ -100,9 +105,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
 
     def camera_follow_side(self):
         x, y, z = self.body_xyz
-        self.camera.move_and_look_at(x, y-3.0, z, x, y, z)
-
-
+        self.camera.move_and_look_at(x, y - 3.0, z, x, y, z)
 
     def _step(self, a):
         if not self.scene.multiplayer:  # if multiplayer, action first applied to all robots, then global step() called, then _step() for all robots with the same actions
@@ -115,11 +118,12 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         progress = 0
         electricity_cost = 0
         joints_at_limit_cost = 0
-        feet_collision_cost =  0.0
+        feet_collision_cost = 0.0
         gait_reward = 0
         self.correct_step_call = True
 
-        alive = float(self.alive_bonus(state[0]+self.initial_z, self.body_rpy[1]))   # state[0] is body height above ground, body_rpy[1] is pitch
+        alive = float(self.alive_bonus(state[0] + self.initial_z,
+                                       self.body_rpy[1]))  # state[0] is body height above ground, body_rpy[1] is pitch
         done = alive < 0
         if not np.isfinite(state).all():
             print("~INF~", state)
@@ -137,15 +141,16 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
 
         # feet_collision_cost = 0.0
         if self.use_reward[2]:
-            for i,f in enumerate(self.feet):
+            for i, f in enumerate(self.feet):
                 contact_names = set(x.name for x in f.contact_list())
-                #print("CONTACT OF '%s' WITH %s" % (f.name, ",".join(contact_names)) )
+                # print("CONTACT OF '%s' WITH %s" % (f.name, ",".join(contact_names)) )
                 self.feet_contact[i] = 1.0 if (self.foot_ground_object_names & contact_names) else 0.0
                 if contact_names - self.foot_ground_object_names:
                     feet_collision_cost += self.foot_collision_cost
 
         if self.use_reward[3]:
-            electricity_cost  = self.electricity_cost  * float(np.abs(a*self.joint_speeds).mean())  # let's assume we have DC motor with controller, and reverse current braking
+            electricity_cost = self.electricity_cost * float(np.abs(
+                a * self.joint_speeds).mean())  # let's assume we have DC motor with controller, and reverse current braking
             electricity_cost += self.stall_torque_cost * float(np.square(a).mean())
 
         if self.use_reward[4]:
@@ -162,10 +167,17 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     self.gait_step = 0
                 self.main_leg_last_contact = contacts[0]
                 for i in range(len(contacts)):
-                    if contacts[i] == self.desired_contacts[self.gait_step][i]:
-                        gait_reward += self.contact_reward
-                    elif self.use_reward[6]:
-                        gait_reward -= self.contact_reward
+                    # if contacts[i] == self.desired_contacts[self.gait_step][i]:
+                    #     gait_reward += self.contact_reward
+                    # elif self.use_reward[6]:
+                    #     gait_reward -= self.contact_reward
+
+                    # smooth reward for better gradient
+                    if contacts[i] == 1:
+                        gait_reward += self.ground_rewards[:,i][self.gait_step]
+                    else:
+                        gait_reward += self.air_rewards[:, i][self.gait_step]
+
                 self.gait_step += 1
         ###############
 
@@ -176,12 +188,12 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             joints_at_limit_cost,
             feet_collision_cost,
             gait_reward
-            ]
+        ]
 
-        self.frame  += 1
-        if (done and not self.done) or self.frame==self.spec.timestep_limit:
+        self.frame += 1
+        if (done and not self.done) or self.frame == self.spec.timestep_limit:
             self.episode_over(self.frame)
-        self.done   += done   # 2 == 1+True
+        self.done += done  # 2 == 1+True
         self.reward += sum(self.rewards)
         self.HUD(state, a, done)
 
@@ -203,12 +215,14 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             self.f.close()
 
 
-
 import matplotlib
+
 matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+
+
 class FeetGraph:
     def __init__(self, foot_list, foot_colors, length, delta=0.2):
         self.delta = delta
@@ -240,7 +254,8 @@ class FeetGraph:
                 continue
             start, end = self.time_step, self.time_step + 1
             pos = self.yplaces[i]
-            self.ax.add_patch(patches.Rectangle((start, pos - self.delta / 2.0), end - start, self.delta, color=self.foot_colors[i]))
+            self.ax.add_patch(
+                patches.Rectangle((start, pos - self.delta / 2.0), end - start, self.delta, color=self.foot_colors[i]))
         self.time_step += 1
         width, height = self.fig.get_size_inches() * self.fig.get_dpi()
         self.fig.canvas.draw()
@@ -249,22 +264,56 @@ class FeetGraph:
 
 
 def generate_points(d, T):
-    feet_data = np.zeros((T,6))
+    feet_data = np.zeros((T, 6))
     d["phi1"] = 0
     for i in range(6):
-        start_contact = int(T * d["phi"+str(i+1)])
-        end_contact = int(T * ((d['beta'] + d["phi"+str(i+1)]) % 1))
+        start_contact = int(T * d["phi" + str(i + 1)])
+        end_contact = int(T * ((d['beta'] + d["phi" + str(i + 1)]) % 1))
         if start_contact > end_contact:
             for j in range(0, end_contact, 1):
-                feet_data[j,i] = 1
+                feet_data[j, i] = 1
             for j in range(end_contact, start_contact, 1):
-                feet_data[j,i] = 0
+                feet_data[j, i] = 0
             for j in range(start_contact, T, 1):
-                feet_data[j,i] = 1
+                feet_data[j, i] = 1
         else:
             for j in range(start_contact, end_contact, 1):
-                feet_data[j,i] = 1
+                feet_data[j, i] = 1
     return feet_data
 
 
 # rendering in script params
+
+
+def invert_gait(gait_points):
+    inverted_gait = copy(gait_points)
+    for i in range(len(inverted_gait)):
+        for j in range(len(inverted_gait[i])):
+            inverted_gait[i][j] = 1 - inverted_gait[i][j]
+    return inverted_gait
+
+
+def make_smooth_reward(gait_points):
+    reward_matrix = copy(gait_points)
+    length = len(reward_matrix[:, 0])
+
+    for i in range(len(reward_matrix[0])):
+        z_len = length - int(sum(reward_matrix[:, i]))
+        d = 1.0 / (z_len / 2)
+        border = 0
+
+        if reward_matrix[:, i][0] == 0:
+            while reward_matrix[:, i][border] != 1:
+                border += 1
+        else:
+            while reward_matrix[:, i][border] != 0:
+                border += 1
+            border -= (length - z_len)
+            if border < 0:
+                border += length
+
+        z_pos = border - int(z_len / 2) - 1
+        for j in range(int(z_len / 2) + 1):
+            reward_matrix[:, i][z_pos + j] = round(d * j, 2)
+            reward_matrix[:, i][z_pos - j] = round(d * j, 2)
+    return reward_matrix
