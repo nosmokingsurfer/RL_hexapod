@@ -19,6 +19,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     render_mode = 0;
     correct_step_call = False
 
+    gl_step = 0
+
     def __init__(self):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
         self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
@@ -94,6 +96,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             self.scene.cpp_world.test_window_rewards(self.rewards)
         if self.done <= 1:  # Only post score on first time done flag is seen, keep this score if user continues to use env
             info_str = "step: %04i  reward: %07.1f %s" % (self.frame, self.reward, "DONE" if self.done else "")
+            # info_str = "%02.2f %02.2f %02.2f %02.2f %02.2f %02.2f s: %04i" % (a[1], a[3], a[5], a[7], a[9], a[11], self.frame)
             if active:
                 self.scene.cpp_world.test_window_score(info_str)
             self.camera.test_window_score(
@@ -107,7 +110,20 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         x, y, z = self.body_xyz
         self.camera.move_and_look_at(x, y - 3.0, z, x, y, z)
 
+    def get_test_action(self):
+        a = [0.0 for _ in range(12)]
+        for i in range(1, 12, 2):
+            a[i] = np.sin(self.gl_step / 10)
+
+        # sec = int(self.gl_step / 60)
+        # lid = (2 * sec) + 1
+        # if lid < 12:
+        #     a[lid] = -2 #((-1) ** (sec % 2))
+        self.gl_step += 1
+        return a
+
     def _step(self, a):
+        # a = np.array(self.get_test_action())
         if not self.scene.multiplayer:  # if multiplayer, action first applied to all robots, then global step() called, then _step() for all robots with the same actions
             self.apply_action(a)
             self.scene.global_step()
@@ -128,6 +144,11 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         if not np.isfinite(state).all():
             print("~INF~", state)
             done = True
+
+        # if self.gl_step < 360:
+        #     done = False
+        # else:
+        #     done = True
 
         if not self.use_reward[0]:
             alive = 0
@@ -172,11 +193,18 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     # elif self.use_reward[6]:
                     #     gait_reward -= self.contact_reward
 
-                    # smooth reward for better gradient
-                    if contacts[i] == 1:
-                        gait_reward += (self.ground_rewards[:,i][self.gait_step] * self.contact_reward)
+                    # speed reward
+                    joint_id = (2 * i) + 1
+                    if i > 4:  # + is up, - is down:
+                        gait_reward += a[joint_id] * (-1 ** self.desired_contacts[self.gait_step][i]) * self.contact_reward
                     else:
-                        gait_reward += (self.air_rewards[:, i][self.gait_step] * self.contact_reward)
+                        gait_reward += a[joint_id] * (-1 ** (1-self.desired_contacts[self.gait_step][i])) * self.contact_reward
+
+                    # smooth reward for better gradient
+                    # if contacts[i] == 1:
+                    #     gait_reward += (self.ground_rewards[:,i][self.gait_step] * self.contact_reward)
+                    # else:
+                    #     gait_reward += (self.air_rewards[:, i][self.gait_step] * self.contact_reward)
 
                 self.gait_step += 1
         ###############
@@ -309,11 +337,13 @@ def make_smooth_reward(gait_points):
             while reward_matrix[:, i][border] != 0:
                 border += 1
             border -= (length - z_len)
-            if border < 0:
-                border += length
+            # if border < 0:
+            #     border += length
 
         z_pos = border - int(z_len / 2) - 1
         for j in range(int(length / 2) + 1):
-            reward_matrix[:, i][z_pos + j] = d * j # round(d * j, 2)
-            reward_matrix[:, i][z_pos - j] = d * j # round(d * j, 2)
+            if abs(z_pos + j) < length:
+                reward_matrix[:, i][z_pos + j] = d * j # round(d * j, 2)
+            if abs(z_pos - j) < length:
+                reward_matrix[:, i][z_pos - j] = d * j # round(d * j, 2)
     return reward_matrix
