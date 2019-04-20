@@ -194,11 +194,31 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     #     gait_reward -= self.contact_reward
 
                     # speed reward
+                    # joint_id = (2 * i) + 1
+                    # if i > 3:  # + is up, - is down:
+                    #     gait_reward += a[joint_id] * (-1 ** self.desired_contacts[self.gait_step][i]) * self.contact_reward
+                    # else:
+                    #     gait_reward += a[joint_id] * (-1 ** (1-self.desired_contacts[self.gait_step][i])) * self.contact_reward
+
+                    # complex speed-contact reward
                     joint_id = (2 * i) + 1
-                    if i > 4:  # + is up, - is down:
-                        gait_reward += a[joint_id] * (-1 ** self.desired_contacts[self.gait_step][i]) * self.contact_reward
+                    if i > 3:  # + is up, - is down:
+                        if a[joint_id] < 0 and self.desired_contacts[self.gait_step][i] == 1:
+                            if contacts[i] == 1:
+                                gait_reward += self.contact_reward
+                            else:
+                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
+                        else:
+                            gait_reward -= np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
                     else:
-                        gait_reward += a[joint_id] * (-1 ** (1-self.desired_contacts[self.gait_step][i])) * self.contact_reward
+                        # - is up
+                        if a[joint_id] > 0 and self.desired_contacts[self.gait_step][i] == 1:
+                            if contacts[i] == 1:
+                                gait_reward += self.contact_reward
+                            else:
+                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
+                        else:
+                            gait_reward -= np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
 
                     # smooth reward for better gradient
                     # if contacts[i] == 1:
@@ -207,6 +227,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     #     gait_reward += (self.air_rewards[:, i][self.gait_step] * self.contact_reward)
 
                 self.gait_step += 1
+        # if gait_reward > 3:
+        #     print(a)
         ###############
 
         self.rewards = [
