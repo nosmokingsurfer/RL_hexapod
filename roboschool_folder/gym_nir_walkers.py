@@ -313,7 +313,7 @@ def make_smooth_reward(gait_points):
                 border += length
 
         z_pos = border - int(z_len / 2) - 1
-        for j in range(int(z_len / 2) + 1):
-            reward_matrix[:, i][z_pos + j] = round(d * j, 2)
-            reward_matrix[:, i][z_pos - j] = round(d * j, 2)
+        for j in range(int(length / 2) + 1):
+            reward_matrix[:, i][z_pos + j] = d * j # round(d * j, 2)
+            reward_matrix[:, i][z_pos - j] = d * j # round(d * j, 2)
     return reward_matrix
