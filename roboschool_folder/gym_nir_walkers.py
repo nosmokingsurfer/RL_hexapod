@@ -205,20 +205,20 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     if i > 3:  # + is up, - is down:
                         if a[joint_id] < 0 and self.desired_contacts[self.gait_step][i] == 1:
                             if contacts[i] == 1:
-                                gait_reward += self.contact_reward
+                                gait_reward += self.contact_reward * 1.1
                             else:
                                 gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
-                        else:
-                            gait_reward -= np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
+                        # else:
+                        #     gait_reward -= np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
                     else:
                         # - is up
                         if a[joint_id] > 0 and self.desired_contacts[self.gait_step][i] == 1:
                             if contacts[i] == 1:
-                                gait_reward += self.contact_reward
+                                gait_reward += self.contact_reward * 1.1
                             else:
                                 gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
-                        else:
-                            gait_reward -= np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
+                        # else:
+                        #     gait_reward -= np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
 
                     # smooth reward for better gradient
                     # if contacts[i] == 1:
