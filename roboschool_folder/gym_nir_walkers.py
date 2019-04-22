@@ -233,7 +233,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         max_progress = 0.65 + (gait_reward / (6 * 1.1 * self.contact_reward))
         if progress > max_progress:
             gait_reward = max_progress - progress
-        # gait_reward = 0.0
+        else:
+            gait_reward = 0.0
         ###############
 
         self.rewards = [
