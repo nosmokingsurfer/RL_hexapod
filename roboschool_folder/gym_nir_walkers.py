@@ -127,6 +127,10 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         return a
 
 
+    ## wtf, is needed for google.colab
+    def _seed(self, seed=None):
+        return super(RoboschoolMutant, self)._seed(seed=None)
+
     def _reset(self):
         s = super(RoboschoolMutant, self)._reset()
         self.phase_time = 0
