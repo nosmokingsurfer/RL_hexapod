@@ -104,7 +104,9 @@ def run_episode(env, policy, scaler, animate=False, logger=None, anim_name='ant_
     step = 0.0
     scale, offset = scaler.get()
     scale[-1] = 1.0  # don't scale time step feature
+    scale[-2] = 1.0  # don't scale time step feature
     offset[-1] = 0.0  # don't offset time step feature
+    offset[-2] = 0.0  # don't offset time step feature
     rendered_frames = []
     while not done:
         if animate:

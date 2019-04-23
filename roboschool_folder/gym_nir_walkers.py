@@ -22,7 +22,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     gl_step = 0
 
     def __init__(self):
-        RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=38, power=2.5)
+        RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=39, power=2.5)
         self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
 
     def set_params(self, gaits_config_path='./walk_analyse/', gait_name=None, gait_cycle_len=30,
@@ -41,10 +41,14 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             gdf = pd.read_csv(os.path.join(self.gaits_config_path, 'gaits.csv'))
             self.gaits = gdf.set_index('gait_name').T.to_dict()
             self.desired_contacts = generate_points(self.gaits[self.gait_name], self.gait_cycle_len)
-            self.ground_rewards = make_smooth_reward(self.desired_contacts)
-            self.air_rewards = make_smooth_reward(invert_gait(self.desired_contacts))
-            self.main_leg_last_contact = False;
-            self.gait_step = 0;
+            self.phase_map = generate_phase_map(self.desired_contacts)
+            # self.ground_rewards = make_smooth_reward(self.desired_contacts)
+            # self.air_rewards = make_smooth_reward(invert_gait(self.desired_contacts))
+            self.main_leg_last_contact = False
+            self.gait_step = 0
+            self.last_phase = 0
+            self.phase_time = 0
+            self.phase_time_limit = 250
 
         if self.log_rewards:
             self.f = open(os.path.join(self.out_path, 'reward_log.csv'), 'w')
@@ -122,6 +126,14 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         self.gl_step += 1
         return a
 
+
+    def _reset(self):
+        s = super(RoboschoolMutant, self)._reset()
+        self.phase_time = 0
+        self.gait_step = 0
+        return np.append(s, 0)
+
+
     def _step(self, a):
         # a = np.array(self.get_test_action())
         if not self.scene.multiplayer:  # if multiplayer, action first applied to all robots, then global step() called, then _step() for all robots with the same actions
@@ -145,10 +157,6 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             print("~INF~", state)
             done = True
 
-        # if self.gl_step < 360:
-        #     done = False
-        # else:
-        #     done = True
 
         if not self.use_reward[0]:
             alive = 0
@@ -177,64 +185,42 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         if self.use_reward[4]:
             joints_at_limit_cost = float(self.joints_at_limit_cost * self.joints_at_limit)
 
-        ###############
-        # gait_reward = 0
+        ############### # complex speed-contact reward
+        true_hits = 0
         if self.use_reward[5]:
             if self.gait_name is not None:
                 contacts = state[32:38]
-                if (self.main_leg_last_contact is False and contacts[0] is True):
-                    self.gait_step = 0
+                # if (self.main_leg_last_contact is False and contacts[0] is True):
+                #     self.gait_step = 0
                 if self.gait_step >= self.gait_cycle_len:
                     self.gait_step = 0
+                state = np.append(state, self.phase_map[self.gait_step])
                 self.main_leg_last_contact = contacts[0]
                 for i in range(len(contacts)):
-                    # if contacts[i] == self.desired_contacts[self.gait_step][i]:
-                    #     gait_reward += self.contact_reward
-                    # elif self.use_reward[6]:
-                    #     gait_reward -= self.contact_reward
-
-                    # speed reward
-                    # joint_id = (2 * i) + 1
-                    # if i > 3:  # + is up, - is down:
-                    #     gait_reward += a[joint_id] * (-1 ** self.desired_contacts[self.gait_step][i]) * self.contact_reward
-                    # else:
-                    #     gait_reward += a[joint_id] * (-1 ** (1-self.desired_contacts[self.gait_step][i])) * self.contact_reward
-
-                    # complex speed-contact reward
                     joint_id = (2 * i) + 1
-                    if i > 3:  # + is up, - is down:
-                        if a[joint_id] < 0 and self.desired_contacts[self.gait_step][i] == 1:
-                            if contacts[i] == 1:
-                                gait_reward += self.contact_reward * 1.1
-                            else:
-                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
-                        elif self.use_reward[6]:
-                            gait_reward -= (np.clip(np.abs(a[joint_id]), 0, 1) + 0.1) * self.contact_reward
+                    desired_contact = self.desired_contacts[self.gait_step][i]
+                    if contacts[i] == desired_contact:
+                        gait_reward += self.contact_reward * 1.1
+                        true_hits += 1
                     else:
-                        # - is up
-                        if a[joint_id] > 0 and self.desired_contacts[self.gait_step][i] == 1:
-                            if contacts[i] == 1:
-                                gait_reward += self.contact_reward * 1.1
-                            else:
+                        # legs 4 and 5 have inverted control signals (need to fix xml)
+                        if i > 3:  # + is up, - is down:
+                            if (desired_contact == 1 and a[joint_id] < 0) or (desired_contact == 0 and a[joint_id] > 0):
                                 gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
-                        elif self.use_reward[6]:
-                            gait_reward -= (np.clip(np.abs(a[joint_id]), 0, 1) + 0.1) * self.contact_reward
-
-                    # smooth reward for better gradient
-                    # if contacts[i] == 1:
-                    #     gait_reward += (self.ground_rewards[:,i][self.gait_step] * self.contact_reward)
-                    # else:
-                    #     gait_reward += (self.air_rewards[:, i][self.gait_step] * self.contact_reward)
-
-                self.gait_step += 1
-        # if gait_reward > 3:
-        #     print(a)
-
-        max_progress = 0.65 + (gait_reward / (6 * 1.1 * self.contact_reward))
-        if progress > max_progress:
-            gait_reward = max_progress - progress
-        else:
-            gait_reward = 0.0
+                        else:
+                            # - is up, + is down
+                            if (desired_contact == 1 and a[joint_id] > 0) or (desired_contact == 0 and a[joint_id] < 0):
+                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
+                if true_hits == len(contacts):
+                    self.gait_step += 1
+                if self.last_phase == self.phase_map[self.gait_step]:
+                    self.phase_time += 1
+                else:
+                    self.last_phase == self.phase_map[self.gait_step]
+                    self.phase_time = 0
+                if self.phase_time > self.phase_time_limit:
+                    done = True
+        # progress = 0
         ###############
 
         self.rewards = [
@@ -263,6 +249,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             row['gait_reward'] = gait_reward
             self.writer.writerow(row)
             self.f.flush()
+
 
         return state, sum(self.rewards), bool(done), {}
 
@@ -337,6 +324,19 @@ def generate_points(d, T):
                 feet_data[j, i] = 1
     return feet_data
 
+
+def generate_phase_map(gait_points):
+    phase = 0
+    ph_map = [phase]
+    pos = gait_points[0]
+    for i in range(1, len(gait_points), 1):
+        same = True
+        for j in range(len(gait_points[i])):
+            same = same and (gait_points[i][j] == gait_points[i-1][j])
+        if not same:
+            phase += 1
+        ph_map.append(phase)
+    return ph_map
 
 # rendering in script params
 
