@@ -100,7 +100,8 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             self.scene.cpp_world.test_window_actions(a.tolist())
             self.scene.cpp_world.test_window_rewards(self.rewards)
         if self.done <= 1:  # Only post score on first time done flag is seen, keep this score if user continues to use env
-            info_str = "step: %04i  reward: %07.1f %s" % (self.frame, self.reward, "DONE" if self.done else "")
+            # info_str = "step: %04i  reward: %07.1f phase: %1i %s" % (self.frame, self.reward, s[-1], "DONE" if self.done else "")
+            info_str = "S: %03i R: %06.1f Ph: %1i Pht: %03i/%02i" % (self.frame, self.reward, s[-1], self.phase_time, self.gait_step)
             # info_str = "%02.2f %02.2f %02.2f %02.2f %02.2f %02.2f s: %04i" % (a[1], a[3], a[5], a[7], a[9], a[11], self.frame)
             if active:
                 self.scene.cpp_world.test_window_score(info_str)
@@ -207,26 +208,26 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     joint_id = (2 * i) + 1
                     desired_contact = self.desired_contacts[self.gait_step][i]
                     if contacts[i] == desired_contact:
-                        gait_reward += self.contact_reward * 1.1
+                        gait_reward += self.contact_reward
                         true_hits += 1
                     else:
                         # legs 4 and 5 have inverted control signals (need to fix xml)
                         if i > 3:  # + is up, - is down:
                             if (desired_contact == 1 and a[joint_id] < 0) or (desired_contact == 0 and a[joint_id] > 0):
-                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
+                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 0.9) * self.contact_reward
                         else:
                             # - is up, + is down
                             if (desired_contact == 1 and a[joint_id] > 0) or (desired_contact == 0 and a[joint_id] < 0):
-                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 1) * self.contact_reward
-                if true_hits == len(contacts):
-                    self.gait_step += 1
+                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 0.9) * self.contact_reward
                 if self.last_phase == self.phase_map[self.gait_step]:
                     self.phase_time += 1
                 else:
-                    self.last_phase == self.phase_map[self.gait_step]
+                    self.last_phase = self.phase_map[self.gait_step]
                     self.phase_time = 0
                 if self.phase_time > self.phase_time_limit:
                     done = True
+                if true_hits == len(contacts):
+                    self.gait_step += 1
         # progress = 0
         ###############
 
