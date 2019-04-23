@@ -404,7 +404,7 @@ def update_train_info(logger, num_episodes):
 
 
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask, log_rewards, gait_reward_weight):
+def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask, log_rewards, gait_reward_weight, g_colab):
     """ Main training loop
 
     Args:
@@ -426,7 +426,7 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     start_time = datetime.now()  # create unique directories
     start_time_str = start_time.strftime("%b-%d/%H.%M.%S")
     logger = Logger(logname=env_name, now=start_time_str, out_path=out_path)
-    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode, reward_mask=reward_mask, contact_reward=gait_reward_weight)
+    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode, reward_mask=reward_mask, contact_reward=gait_reward_weight, g_colab=g_colab)
     scaler = Scaler(obs_dim)
 
     val_func = NNValueFunction(obs_dim, logger, restore_path)
@@ -546,6 +546,9 @@ if __name__ == "__main__":
                         default=0.2)
     parser.add_argument('-lr', '--log_rewards', type=bool,
                         help='enable/disable rewards log in training',
+                        default=False)
+    parser.add_argument('-gcl', '--g_colab', type=bool,
+                        help='for compability with roboschool-1.0.46',
                         default=False)
 
     args = parser.parse_args()

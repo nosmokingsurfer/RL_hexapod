@@ -18,15 +18,15 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     log_rewards = False;
     render_mode = 0;
     correct_step_call = False
-
-    gl_step = 0
+    g_colab = False
 
     def __init__(self):
         RoboschoolForwardWalkerMujocoXML.__init__(self, "mutant.xml", "torso", action_dim=12, obs_dim=39, power=2.5)
         self.feet_graph = FeetGraph(self.foot_list, self.foot_colors, 500)
 
     def set_params(self, gaits_config_path='./walk_analyse/', gait_name=None, gait_cycle_len=30,
-                   out_path='./walk_analyse/', log_rewards=False, render_mode=0, reward_mask=63, contact_reward=0.5):
+                   out_path='./walk_analyse/', log_rewards=False, render_mode=0, reward_mask=63, contact_reward=0.5,
+                   g_colab = False):
         self.gaits_config_path = gaits_config_path
         self.gait_name = gait_name
         self.gait_cycle_len = gait_cycle_len
@@ -36,6 +36,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         # self.use_reward = [reward_mask & 1, reward_mask & 2, reward_mask & 4, reward_mask & 8, reward_mask & 16, reward_mask & 32]
         self.use_reward = [((reward_mask & (2 ** i)) != 0) for i in range(7)]
         self.contact_reward = contact_reward
+        self.g_colab = g_colab
 
         if self.gait_name is not None:
             gdf = pd.read_csv(os.path.join(self.gaits_config_path, 'gaits.csv'))
@@ -117,22 +118,24 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     def get_test_action(self):
         a = [0.0 for _ in range(12)]
         for i in range(1, 12, 2):
-            a[i] = np.sin(self.gl_step / 10)
-
-        # sec = int(self.gl_step / 60)
-        # lid = (2 * sec) + 1
-        # if lid < 12:
-        #     a[lid] = -2 #((-1) ** (sec % 2))
-        self.gl_step += 1
+            a[i] = np.sin(self.frame / 10)
+        self.frame += 1
         return a
 
 
     ## wtf, is needed for google.colab
     def _seed(self, seed=None):
-        return super(RoboschoolMutant, self)._seed(seed=None)
+        if self.g_colab:
+            return super(RoboschoolMutant, self).seed(seed=None)
+        else:
+            return super(RoboschoolMutant, self)._seed(seed=None)
+
 
     def _reset(self):
-        s = super(RoboschoolMutant, self)._reset()
+        if self.g_colab:
+            s = super(RoboschoolMutant, self).reset()
+        else:
+            s = super(RoboschoolMutant, self)._reset()
         self.phase_time = 0
         self.gait_step = 0
         return np.append(s, 0)
