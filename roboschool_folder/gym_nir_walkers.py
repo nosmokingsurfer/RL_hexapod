@@ -209,16 +209,29 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     desired_contact = self.desired_contacts[self.gait_step][i]
                     if contacts[i] == desired_contact:
                         gait_reward += self.contact_reward
+                        # reduce reward for tremor
+                        if i > 3:  # + is up, - is down:
+                            if (desired_contact == 1 and a[joint_id] > 0) or (desired_contact == 0 and a[joint_id] < 0):
+                                gait_reward -= self.contact_reward * 0.7
+                        else:
+                            # - is up, + is down
+                            if (desired_contact == 1 and a[joint_id] < 0) or (desired_contact == 0 and a[joint_id] > 0):
+                                gait_reward -= self.contact_reward * 0.7
+
                         true_hits += 1
                     else:
                         # legs 4 and 5 have inverted control signals (need to fix xml)
+                        # 1) поменять np.abs(a[joint_id] на скорость
+                        # 2) использовать pid
                         if i > 3:  # + is up, - is down:
                             if (desired_contact == 1 and a[joint_id] < 0) or (desired_contact == 0 and a[joint_id] > 0):
-                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 0.9) * self.contact_reward
+                                # gait_reward += np.clip(np.abs(a[joint_id]), 0, 0.9) * self.contact_reward
+                                gait_reward += self.contact_reward * 0.7
                         else:
                             # - is up, + is down
                             if (desired_contact == 1 and a[joint_id] > 0) or (desired_contact == 0 and a[joint_id] < 0):
-                                gait_reward += np.clip(np.abs(a[joint_id]), 0, 0.9) * self.contact_reward
+                                gait_reward += self.contact_reward * 0.7
+
                 if self.last_phase == self.phase_map[self.gait_step]:
                     self.phase_time += 1
                 else:
