@@ -222,9 +222,9 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                         true_hits += 1
                     else:
                         # legs 4 and 5 have inverted control signals (need to fix xml)
-                        # 1) 0.25 weight + progress if true_hits % > 35 for last 1000 steps
-                        # 2) Ускорить обучение марша на месте.
-                        #  Попробовать: если промахиваемся больше нескольких раз (gait_len/2), то сбрасываем задачу в её начало
+                        # 1) 0.25 weight
+                        # 2) progress if mean_gait_reward / 6000 > 0.8 for last 1000 steps
+                        # 3) if progress on use restricted gait step (force gait step each frame)
                         if i > 3:  # + is up, - is down:
                             if (desired_contact == 1 and a[joint_id] < 0) or (desired_contact == 0 and a[joint_id] > 0):
                                 # gait_reward += np.clip(np.abs(a[joint_id]), 0, 0.9) * self.contact_reward
@@ -241,7 +241,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     self.phase_time = 0
                 if self.phase_time > self.phase_time_limit:
                     done = True
-                if true_hits == len(contacts):
+                if true_hits == len(contacts) or self.use_reward[6]:
                     self.gait_step += 1
         # progress = 0
         ###############
