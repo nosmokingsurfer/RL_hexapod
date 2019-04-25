@@ -173,6 +173,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             potential_old = self.potential
             self.potential = self.calc_potential()
             progress = float(self.potential - potential_old)
+            progress *= 5
             # if progress > 1.4:
             #     progress = 1.4
 
@@ -212,25 +213,26 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                         # reduce reward for tremor
                         if i > 3:  # + is up, - is down:
                             if (desired_contact == 1 and a[joint_id] > 0) or (desired_contact == 0 and a[joint_id] < 0):
-                                gait_reward -= self.contact_reward * 0.7
+                                gait_reward -= self.contact_reward * 0.3
                         else:
                             # - is up, + is down
                             if (desired_contact == 1 and a[joint_id] < 0) or (desired_contact == 0 and a[joint_id] > 0):
-                                gait_reward -= self.contact_reward * 0.7
+                                gait_reward -= self.contact_reward * 0.3
 
                         true_hits += 1
                     else:
                         # legs 4 and 5 have inverted control signals (need to fix xml)
-                        # 1) поменять np.abs(a[joint_id] на скорость
-                        # 2) использовать pid
+                        # 1) 0.25 weight + progress if true_hits % > 35 for last 1000 steps
+                        # 2) Ускорить обучение марша на месте.
+                        #  Попробовать: если промахиваемся больше нескольких раз (gait_len/2), то сбрасываем задачу в её начало
                         if i > 3:  # + is up, - is down:
                             if (desired_contact == 1 and a[joint_id] < 0) or (desired_contact == 0 and a[joint_id] > 0):
                                 # gait_reward += np.clip(np.abs(a[joint_id]), 0, 0.9) * self.contact_reward
-                                gait_reward += self.contact_reward * 0.7
+                                gait_reward += self.contact_reward * 0.5
                         else:
                             # - is up, + is down
                             if (desired_contact == 1 and a[joint_id] > 0) or (desired_contact == 0 and a[joint_id] < 0):
-                                gait_reward += self.contact_reward * 0.7
+                                gait_reward += self.contact_reward * 0.5
 
                 if self.last_phase == self.phase_map[self.gait_step]:
                     self.phase_time += 1
