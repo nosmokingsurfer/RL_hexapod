@@ -122,13 +122,19 @@ class Logger(object):
         if display:
             self.disp(self.log_entry)
         if self.write_header:
-            fieldnames = [x for x in self.log_entry.keys() if x not in toplist]
-            fieldnames = toplist + fieldnames
-            self.writer = csv.DictWriter(self.f, fieldnames=fieldnames)
+            self.fieldnames = [x for x in self.log_entry.keys() if x not in toplist]
+            self.fieldnames = toplist + self. fieldnames
+            self.writer = csv.DictWriter(self.f, fieldnames=self.fieldnames)
             self.writer.writeheader()
             self.write_header = False
         self.writer.writerow(self.log_entry)
         self.log_entry = {}
+        self.f.flush()
+
+    def reopen_log(self):
+        self.f.close()
+        self.f = open(os.path.join(path, 'log.csv'), 'a')
+        self.writer = csv.DictWriter(self.f, fieldnames=self.fieldnames)
 
     @staticmethod
     def disp(log):

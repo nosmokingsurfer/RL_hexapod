@@ -25,6 +25,7 @@ This implementation learns policies for continuous environments
 in the OpenAI Gym (https://gym.openai.com/). Testing was focused on
 the MuJoCo control tasks.
 """
+import os
 import gym, roboschool
 import numpy as np
 from gym import wrappers
@@ -479,6 +480,15 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
                 update_train_info(logger, episode)
                 if animation_mode > 0:
                     run_policy(env, policy, scaler, logger, episodes=1, animate=True, anim_name='epizode_{}'.format(episode))
+            if episode % 5000 == 0:
+                os.rename(os.path.join(logger.path, 'value_dump'), os.path.join(logger.path, 'value_dump_' + str(episode)))
+                os.rename(os.path.join(logger.path, 'policy_dump'), os.path.join(logger.path, 'policy_dump_' + str(episode)))
+            if episode = 20000:
+                reward_mask = 63
+                env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length,
+                                   out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode,
+                                   reward_mask=reward_mask, contact_reward=gait_reward_weight, g_colab=g_colab)
+                print("Progress Enabled")
             if killer.kill_now:
                 # if input('Terminate training (y/[n])? ') == 'y':
                 #     break
