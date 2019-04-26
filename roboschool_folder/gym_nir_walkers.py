@@ -199,8 +199,6 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         if self.use_reward[5]:
             if self.gait_name is not None:
                 contacts = state[32:38]
-                # if (self.main_leg_last_contact is False and contacts[0] is True):
-                #     self.gait_step = 0
                 if self.gait_step >= self.gait_cycle_len:
                     self.gait_step = 0
                 state = np.append(state, self.phase_map[self.gait_step])
@@ -243,7 +241,11 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
                     done = True
                 if true_hits == len(contacts) or self.use_reward[6]:
                     self.gait_step += 1
-        # progress = 0
+        else:
+            if self.gait_step >= self.gait_cycle_len:
+                self.gait_step = 0
+            state = np.append(state, self.phase_map[self.gait_step])
+            self.gait_step += 1
         ###############
 
         self.rewards = [

@@ -373,7 +373,7 @@ def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length,
             finfo.write("  [{}]\tjoints_at_limit_cost\n".format(check_mask(reward_mask, 8)))
             finfo.write("  [{}]\tfeet_collision_cost\n".format(check_mask(reward_mask, 16)))
             finfo.write("  [{}]\tgait_reward\n".format(check_mask(reward_mask, 32)))
-            finfo.write("  [{}]\tuse antireward for mistakes\n".format(check_mask(reward_mask, 64)))
+            finfo.write("  [{}]\trestricted phase length\n".format(check_mask(reward_mask, 64)))
 
             finfo.write("batch_size:\t\t{}\n".format(batch_size))
             finfo.write("Restore path:\t\t{}\n".format(restore_path))
