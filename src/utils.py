@@ -134,7 +134,7 @@ class Logger(object):
     def reopen_log(self):
         self.f.flush()
         self.f.close()
-        self.f = open(os.path.join(path, 'log.csv'), 'a')
+        self.f = open(os.path.join(self.path, 'log.csv'), 'a')
         self.writer = csv.DictWriter(self.f, fieldnames=self.fieldnames)
 
     @staticmethod
