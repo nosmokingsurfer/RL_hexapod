@@ -173,7 +173,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             potential_old = self.potential
             self.potential = self.calc_potential()
             progress = float(self.potential - potential_old)
-            progress *= 5
+            # progress *= 5
             # if progress > 1.4:
             #     progress = 1.4
 

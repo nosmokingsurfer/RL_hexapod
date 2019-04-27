@@ -129,9 +129,10 @@ class Logger(object):
             self.write_header = False
         self.writer.writerow(self.log_entry)
         self.log_entry = {}
-        self.f.flush()
+        self.reopen_log()
 
     def reopen_log(self):
+        self.f.flush()
         self.f.close()
         self.f = open(os.path.join(path, 'log.csv'), 'a')
         self.writer = csv.DictWriter(self.f, fieldnames=self.fieldnames)
