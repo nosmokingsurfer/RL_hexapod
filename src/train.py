@@ -356,7 +356,7 @@ def check_mask(mask, value):
     return "ON" if mask & value != 0 else "OFF"
 
 
-def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask, gait_reward_weight):
+def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask, gait_reward_weight, progress_reward_weight):
     if num_episodes > 0:
         # log train info
         with open(logger.path + '/train_info.txt', 'w+') as finfo:
@@ -364,11 +364,12 @@ def log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length,
             finfo.write("Date:    \t\t{}\n".format(start_time_str))
             finfo.write("Epizodes:\t\t{}\n".format(-1))
             finfo.write("gait_name:\t\t{}\n".format(gait_name))
+            finfo.write("progress reward weight:\t\t{}\n".format(progress_reward_weight))
             if gait_name is not None:
                 finfo.write("gait_length:\t\t{}\n".format(gait_length))
                 finfo.write("gait reward weight:\t\t{}\n".format(gait_reward_weight))
             finfo.write("rewards: (mask={})\n".format(reward_mask))
-            finfo.write("  [{}]\talive:\n".format(check_mask(reward_mask, 1)))
+            finfo.write("  [{}]\talive\n".format(check_mask(reward_mask, 1)))
             finfo.write("  [{}]\tprogress\n".format(check_mask(reward_mask, 2)))
             finfo.write("  [{}]\telectricity_cost\n".format(check_mask(reward_mask, 4)))
             finfo.write("  [{}]\tjoints_at_limit_cost\n".format(check_mask(reward_mask, 8)))
@@ -405,7 +406,7 @@ def update_train_info(logger, num_episodes):
 
 
 
-def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask, log_rewards, gait_reward_weight, g_colab):
+def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, out_path, thread_count, animation_mode, gait_name, gait_length, gaits_config_path, reward_mask, log_rewards, gait_reward_weight, g_colab, progress_reward_weight):
     """ Main training loop
 
     Args:
@@ -427,13 +428,13 @@ def main(env_name, num_episodes, gamma, lam, kl_targ, batch_size, restore_path, 
     start_time = datetime.now()  # create unique directories
     start_time_str = start_time.strftime("%b-%d/%H.%M.%S")
     logger = Logger(logname=env_name, now=start_time_str, out_path=out_path)
-    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode, reward_mask=reward_mask, contact_reward=gait_reward_weight, g_colab=g_colab)
+    env.env.set_params(gaits_config_path=gaits_config_path, gait_name=gait_name, gait_cycle_len=gait_length, out_path=logger.path, log_rewards=log_rewards, render_mode=animation_mode, reward_mask=reward_mask, contact_reward=gait_reward_weight, g_colab=g_colab, progress_weight=progress_reward_weight)
     scaler = Scaler(obs_dim)
 
     val_func = NNValueFunction(obs_dim, logger, restore_path)
     policy = Policy(obs_dim, act_dim, kl_targ, logger, restore_path)
 
-    log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask, gait_reward_weight)
+    log_train_info(logger, num_episodes, start_time_str, gait_name, gait_length, batch_size, restore_path, reward_mask, gait_reward_weight, progress_reward_weight)
 
     # run a few episodes of untrained policy to initialize scaler:
     episode = 0
@@ -560,6 +561,9 @@ if __name__ == "__main__":
     parser.add_argument('-gcl', '--g_colab', type=bool,
                         help='for compability with roboschool-1.0.46',
                         default=False)
+    parser.add_argument('-prw', '--progress_reward_weight', type=float,
+                        help='leg contact reward',
+                        default=1.0)
 
     args = parser.parse_args()
     main(**vars(args))

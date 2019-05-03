@@ -18,6 +18,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
     log_rewards = False;
     render_mode = 0;
     correct_step_call = False
+    progress_weight = 1
     g_colab = False
 
     def __init__(self):
@@ -26,7 +27,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
 
     def set_params(self, gaits_config_path='./walk_analyse/', gait_name=None, gait_cycle_len=30,
                    out_path='./walk_analyse/', log_rewards=False, render_mode=0, reward_mask=63, contact_reward=0.5,
-                   g_colab = False):
+                   g_colab = False, progress_weight=1):
         self.gaits_config_path = gaits_config_path
         self.gait_name = gait_name
         self.gait_cycle_len = gait_cycle_len
@@ -37,6 +38,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
         self.use_reward = [((reward_mask & (2 ** i)) != 0) for i in range(7)]
         self.contact_reward = contact_reward
         self.g_colab = g_colab
+        self.progress_weight = progress_weight
 
         if self.gait_name is not None:
             gdf = pd.read_csv(os.path.join(self.gaits_config_path, 'gaits.csv'))
@@ -173,7 +175,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             potential_old = self.potential
             self.potential = self.calc_potential()
             progress = float(self.potential - potential_old)
-            # progress *= 5
+            progress *= self.progress_weight
             # if progress > 1.4:
             #     progress = 1.4
 
