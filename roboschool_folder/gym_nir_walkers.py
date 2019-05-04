@@ -27,7 +27,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
 
     def set_params(self, gaits_config_path='./walk_analyse/', gait_name=None, gait_cycle_len=30,
                    out_path='./walk_analyse/', log_rewards=False, render_mode=0, reward_mask=63, contact_reward=0.5,
-                   g_colab = False, progress_weight=1):
+                   g_colab = False, progress_weight=1, phase_time_limit=250):
         self.gaits_config_path = gaits_config_path
         self.gait_name = gait_name
         self.gait_cycle_len = gait_cycle_len
@@ -51,7 +51,7 @@ class RoboschoolMutant(RoboschoolForwardWalkerMujocoXML):
             self.gait_step = 0
             self.last_phase = 0
             self.phase_time = 0
-            self.phase_time_limit = 250
+            self.phase_time_limit = phase_time_limit
 
         if self.log_rewards:
             self.f = open(os.path.join(self.out_path, 'reward_log.csv'), 'w')
